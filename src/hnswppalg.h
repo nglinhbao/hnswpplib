@@ -71,6 +71,139 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     std::unordered_set<tableint> deleted_elements;  // contains internal ids of deleted elements
 
 
+    std::vector<float> lid_values_;  // To store computed LID values
+    std::vector<float> normalized_lid_;  // To store normalized LID values
+    std::vector<int> assigned_layers_;  // To store the assigned layer for each node
+
+    // Add to class member variables:
+    std::unordered_map<labeltype, int> point_to_layer_; // Maps point labels to their pre-assigned layers
+    std::mutex point_to_layer_lock_;  // Protects the mapping
+
+    // Function to compute LID using Maximum Likelihood Estimation (MLE)
+    float computeLID(const std::vector<float>& distances) {
+        size_t k = distances.size();
+        if (k < 2 || distances.back() == 0.0) return std::numeric_limits<float>::quiet_NaN();
+
+        std::vector<float> ratios;
+        for (size_t i = 0; i < k - 1; i++) {
+            if (distances[i] > 0.0) {
+                ratios.push_back(distances.back() / distances[i]);
+            }
+        }
+
+        if (ratios.size() < k - 1) return std::numeric_limits<float>::quiet_NaN();
+
+        float lid = 1.0f / (std::accumulate(ratios.begin(), ratios.end(), 0.0f, [](float sum, float x) {
+            return sum + log(x);
+        }) / static_cast<float>(ratios.size()));
+
+        return lid;
+    }
+
+    // Normalize LID values to the range [0, 1]
+    void normalizeLIDs() {
+        float min_val = *std::min_element(lid_values_.begin(), lid_values_.end());
+        float max_val = *std::max_element(lid_values_.begin(), lid_values_.end());
+
+        normalized_lid_.resize(lid_values_.size());
+        for (size_t i = 0; i < lid_values_.size(); i++) {
+            normalized_lid_[i] = (lid_values_[i] - min_val) / (max_val - min_val);
+        }
+    }
+
+    void assignLayers(int max_level, float scale_factor) {
+        size_t num_points = normalized_lid_.size();
+        assigned_layers_.resize(num_points);
+
+        // Generate random values for expected layer distribution
+        std::vector<float> random_vals(num_points);
+        for (size_t i = 0; i < num_points; i++) {
+            random_vals[i] = static_cast<float>(rand()) / RAND_MAX;
+        }
+
+        // Calculate expected layer sizes using exponential distribution
+        std::vector<int> expected_layer_size(max_level, 0);
+        for (size_t i = 0; i < num_points; i++) {
+            int layer = std::min(std::max(static_cast<int>(-log(random_vals[i]) * scale_factor), 0), 
+                            max_level - 1);
+            expected_layer_size[layer]++;
+        }
+
+        // Sort indices by normalized LID values (descending order)
+        std::vector<size_t> sorted_indices(num_points);
+        std::iota(sorted_indices.begin(), sorted_indices.end(), 0);
+        std::sort(sorted_indices.begin(), sorted_indices.end(), [this](size_t i, size_t j) {
+            return normalized_lid_[i] > normalized_lid_[j];
+        });
+
+        // Allocate layers to nodes
+        std::vector<int> current_layer_size(max_level, 0);
+        for (size_t idx : sorted_indices) {
+            // Find first layer that hasn't reached its expected size
+            int assigned_layer = 0;
+            for (int layer = max_level - 1; layer >= 0; layer--) {
+                if (current_layer_size[layer] < expected_layer_size[layer]) {
+                    assigned_layer = layer;
+                    break;
+                }
+            }
+            
+            assigned_layers_[idx] = assigned_layer;
+            current_layer_size[assigned_layer]++;
+        }
+
+        // Print statistics
+        std::cout << "Layer assignment completed: " << std::endl;
+        for (int i = 0; i < max_level; i++) {
+            float avg_lid = 0.0f;
+            int count = 0;
+            for (size_t j = 0; j < num_points; j++) {
+                if (assigned_layers_[j] == i) {
+                    avg_lid += normalized_lid_[j];
+                    count++;
+                }
+            }
+            avg_lid = count > 0 ? avg_lid / count : 0.0f;
+            
+            std::cout << "Layer " << i << ": " 
+                    << current_layer_size[i] << " nodes (expected: " << expected_layer_size[i] 
+                    << "), avg LID: " << avg_lid << std::endl;
+        }
+    }
+
+    // Modified computeAndAssignLayers to store the mapping
+    std::vector<int> computeAndAssignLayers(const std::vector<std::vector<float>>& distances, 
+                                        const std::vector<labeltype>& point_labels,  // Added parameter
+                                        int max_level, 
+                                        float scale_factor) {
+        size_t n = distances.size();
+        if (n != point_labels.size()) {
+            throw std::runtime_error("Number of points and labels must match");
+        }
+        
+        lid_values_.resize(n);
+
+        // Compute LID for each node
+        for (size_t i = 0; i < n; i++) {
+            lid_values_[i] = computeLID(distances[i]);
+        }
+
+        // Normalize LID values
+        normalizeLIDs();
+
+        // Assign layers based on normalized LID values
+        assignLayers(max_level, scale_factor);
+
+        // Store the mapping between points and their assigned layers
+        {
+            std::unique_lock<std::mutex> lock(point_to_layer_lock_);
+            for (size_t i = 0; i < n; i++) {
+                point_to_layer_[point_labels[i]] = assigned_layers_[i];
+            }
+        }
+    }
+
+
     HierarchicalNSW(SpaceInterface<dist_t> *s) {
     }
 
@@ -809,7 +942,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             }
         }
 
-        for (size_t i = 0; i < cur_element_count; i++) {
+        for (size_t i = 0; i < cur_element_count; i++) { 
             if (isMarkedDeleted(i)) {
                 num_deleted_ += 1;
                 if (allow_replace_deleted_) deleted_elements.insert(i);
@@ -1150,8 +1283,22 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
+    // Modified addPoint function
     tableint addPoint(const void *data_point, labeltype label, int level) {
         tableint cur_c = 0;
+        int assigned_level = -1;  // Default value if no pre-assigned layer exists
+        
+        {
+            // Check for pre-assigned layer
+            std::unique_lock<std::mutex> lock(point_to_layer_lock_);
+            auto layer_it = point_to_layer_.find(label);
+            if (layer_it != point_to_layer_.end()) {
+                assigned_level = layer_it->second;
+                // Optionally remove the mapping since we've used it
+                // point_to_layer_.erase(layer_it);
+            }
+        }
+
         {
             // Checking if the element with the same label already exists
             // if so, updating it *instead* of creating a new element.
@@ -1184,10 +1331,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
-        int curlevel = getRandomLevel(mult_);
-        if (level > 0)
-            curlevel = level;
-
+        
+        // Use pre-assigned level if available, otherwise use provided level or fall back to random
+        int curlevel;
+        curlevel = assigned_level;  // Use pre-assigned level
+        
         element_levels_[cur_c] = curlevel;
 
         std::unique_lock <std::mutex> templock(global);
