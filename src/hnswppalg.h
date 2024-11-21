@@ -1286,18 +1286,18 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     // Modified addPoint function
     tableint addPoint(const void *data_point, labeltype label, int level) {
         tableint cur_c = 0;
-        int assigned_level = -1;  // Default value if no pre-assigned layer exists
+        int assigned_level = assigned_layers_[label];  // Default value if no pre-assigned layer exists
         
-        {
-            // Check for pre-assigned layer
-            std::unique_lock<std::mutex> lock(point_to_layer_lock_);
-            auto layer_it = point_to_layer_.find(label);
-            if (layer_it != point_to_layer_.end()) {
-                assigned_level = layer_it->second;
-                // Optionally remove the mapping since we've used it
-                // point_to_layer_.erase(layer_it);
-            }
-        }
+        // {
+        //     // Check for pre-assigned layer
+        //     std::unique_lock<std::mutex> lock(point_to_layer_lock_);
+        //     auto layer_it = point_to_layer_.find(label);
+        //     if (layer_it != point_to_layer_.end()) {
+        //         assigned_level = layer_it->second;
+        //         // Optionally remove the mapping since we've used it
+        //         // point_to_layer_.erase(layer_it);
+        //     }
+        // }
 
         {
             // Checking if the element with the same label already exists
