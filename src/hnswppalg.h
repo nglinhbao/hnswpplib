@@ -74,10 +74,16 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     std::vector<float> lid_values_;  // To store computed LID values
     std::vector<float> normalized_lid_;  // To store normalized LID values
     std::vector<int> assigned_layers_;  // To store the assigned layer for each node
+    std::vector<int> assigned_branches_;  // To store the assigned layer for each node
 
     // Add to class member variables:
     std::unordered_map<labeltype, int> point_to_layer_; // Maps point labels to their pre-assigned layers
     std::mutex point_to_layer_lock_;  // Protects the mapping
+
+    // Add to class member variables:
+    std::unordered_map<labeltype, int> point_to_branch_; // Maps point labels to their pre-assigned layers
+    std::mutex point_to_branch_lock_;  // Protects the mapping
+
 
     // Function to compute LID using Maximum Likelihood Estimation (MLE)
     float computeLID(const std::vector<float>& distances) {
@@ -114,6 +120,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     void assignLayers(int max_level, float scale_factor) {
         size_t num_points = normalized_lid_.size();
         assigned_layers_.resize(num_points);
+        assigned_branches_.resize(num_points);
 
         // Generate random values for expected layer distribution
         std::vector<float> random_vals(num_points);
@@ -138,6 +145,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         // Allocate layers to nodes
         std::vector<int> current_layer_size(max_level, 0);
+        int assigned_branch = 0;
+
         for (size_t idx : sorted_indices) {
             // Find first layer that hasn't reached its expected size
             int assigned_layer = 0;
@@ -149,6 +158,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             }
             
             assigned_layers_[idx] = assigned_layer;
+            // if assigned_branch is odd, assign to layer 0, else assign to layer 1
+            assigned_branches_[idx] = (assigned_branch % 2) ? 0 : 1;
+            assigned_branch++;
             current_layer_size[assigned_layer]++;
         }
 
@@ -196,9 +208,14 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         // Store the mapping between points and their assigned layers
         {
-            std::unique_lock<std::mutex> lock(point_to_layer_lock_);
+            std::unique_lock<std::mutex> lock_layer(point_to_layer_lock_);
+            std::unique_lock<std::mutex> lock_branch(point_to_branch_lock_);
             for (size_t i = 0; i < n; i++) {
+                // print point_labels[i]
+                // std::cout << "assigned_branches_[i]: " << assigned_branches_[i] << std::endl;
+
                 point_to_layer_[point_labels[i]] = assigned_layers_[i];
+                point_to_branch_[point_labels[i]] = assigned_branches_[i];
             }
         }
     }
@@ -1286,18 +1303,33 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     // Modified addPoint function
     tableint addPoint(const void *data_point, labeltype label, int level) {
         tableint cur_c = 0;
-        int assigned_level = assigned_layers_[label];  // Default value if no pre-assigned layer exists
+        int assigned_level;  // Default value if no pre-assigned layer exists
+        int assigned_branch;  // Default value if no pre-assigned layer exists
         
-        // {
-        //     // Check for pre-assigned layer
-        //     std::unique_lock<std::mutex> lock(point_to_layer_lock_);
-        //     auto layer_it = point_to_layer_.find(label);
-        //     if (layer_it != point_to_layer_.end()) {
-        //         assigned_level = layer_it->second;
-        //         // Optionally remove the mapping since we've used it
-        //         // point_to_layer_.erase(layer_it);
-        //     }
-        // }
+        {
+            // Check for pre-assigned layer
+            std::unique_lock<std::mutex> lock(point_to_layer_lock_);
+            auto layer_it = point_to_layer_.find(label);
+            if (layer_it != point_to_layer_.end()) {
+                assigned_level = layer_it->second;
+                // Optionally remove the mapping since we've used it
+                point_to_layer_.erase(layer_it);
+            }
+        }
+
+        {
+            // Check for pre-assigned layer
+            std::unique_lock<std::mutex> lock(point_to_branch_lock_);
+            auto branch_it = point_to_branch_.find(label);
+            if (branch_it != point_to_branch_.end()) {
+                assigned_branch = branch_it->second;
+                // Optionally remove the mapping since we've used it
+                point_to_branch_.erase(branch_it);
+            }
+
+            // // print branch and label
+            // std::cout << "Branch: " << assigned_branch << " Label: " << label << std::endl;
+        }
 
         {
             // Checking if the element with the same label already exists
