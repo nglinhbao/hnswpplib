@@ -186,7 +186,7 @@ class SpaceInterface {
 template<typename dist_t>
 class AlgorithmInterface {
  public:
-    virtual void addPoint(const void *datapoint, labeltype label, bool replace_deleted = false) = 0;
+    virtual void addPoint(const void *datapoint, labeltype label, int level, bool replace_deleted = false) = 0;
 
     virtual std::priority_queue<std::pair<dist_t, labeltype>>
         searchKnn(const void*, size_t, BaseFilterFunctor* isIdAllowed = nullptr) const = 0;
@@ -225,4 +225,4 @@ AlgorithmInterface<dist_t>::searchKnnCloserFirst(const void* query_data, size_t 
 #include "space_ip.h"
 #include "stop_condition.h"
 #include "bruteforce.h"
-#include "hnswppalg.h"
+#include "hnswalg.h"

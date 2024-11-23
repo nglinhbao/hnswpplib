@@ -70,6 +70,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     std::mutex deleted_elements_lock;  // lock for deleted_elements
     std::unordered_set<tableint> deleted_elements;  // contains internal ids of deleted elements
 
+    tableint closestPoint_ = {0};
+
+    // define exclude_set_
+    std::unordered_set<labeltype> exclude_set_;
 
     HierarchicalNSW(SpaceInterface<dist_t> *s) {
     }
@@ -91,6 +95,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         size_t max_elements,
         size_t M = 16,
         size_t ef_construction = 200,
+        bool same_m0 = false,
         size_t random_seed = 100,
         bool allow_replace_deleted = false)
         : label_op_locks_(MAX_LABEL_OPERATION_LOCKS),
@@ -110,7 +115,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             M_ = 10000;
         }
         maxM_ = M_;
-        maxM0_ = M_ * 2;
+        maxM0_ = same_m0 ? M_ * 2 : M_;
         ef_construction_ = std::max(ef_construction, M_);
         ef_ = 10;
 
@@ -161,6 +166,20 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         visited_list_pool_.reset(nullptr);
     }
 
+    tableint getClosestPoint() const {
+        return closestPoint_;
+    }
+
+    // Function to set a new enterpoint node
+    void setEnterpointNode(tableint new_enterpoint) {
+        std::unique_lock<std::mutex> lock(global); // Ensure thread safety
+        enterpoint_node_ = new_enterpoint;
+    }
+
+    void setExcludeSet(const std::unordered_set<labeltype> &exclude_set) {
+        std::unique_lock<std::mutex> lock(global); // Ensure thread safety
+        exclude_set_ = exclude_set;
+    }
 
     struct CompareByFirst {
         constexpr bool operator()(std::pair<dist_t, tableint> const& a,
@@ -305,7 +324,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
-    // bare_bone_search means there is no check for deletions and stop condition is ignored in return of extra performance
     template <bool bare_bone_search = true, bool collect_metrics = false>
     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst>
     searchBaseLayerST(
@@ -322,8 +340,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
 
         dist_t lowerBound;
-        if (bare_bone_search || 
-            (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id))))) {
+        // Check if ep_id is not in exclude_set_ before processing
+        if (exclude_set_.find(ep_id) == exclude_set_.end() &&
+            (bare_bone_search || 
+            (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id)))))) {
             char* ep_data = getDataByInternalId(ep_id);
             dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
             lowerBound = dist;
@@ -361,27 +381,32 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             tableint current_node_id = current_node_pair.second;
             int *data = (int *) get_linklist0(current_node_id);
             size_t size = getListCount((linklistsizeint*)data);
-//                bool cur_node_deleted = isMarkedDeleted(current_node_id);
+
             if (collect_metrics) {
                 metric_hops++;
                 metric_distance_computations+=size;
             }
 
-#ifdef USE_SSE
+    #ifdef USE_SSE
             _mm_prefetch((char *) (visited_array + *(data + 1)), _MM_HINT_T0);
             _mm_prefetch((char *) (visited_array + *(data + 1) + 64), _MM_HINT_T0);
             _mm_prefetch(data_level0_memory_ + (*(data + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
             _mm_prefetch((char *) (data + 2), _MM_HINT_T0);
-#endif
+    #endif
 
             for (size_t j = 1; j <= size; j++) {
                 int candidate_id = *(data + j);
-//                    if (candidate_id == 0) continue;
-#ifdef USE_SSE
+
+    #ifdef USE_SSE
                 _mm_prefetch((char *) (visited_array + *(data + j + 1)), _MM_HINT_T0);
                 _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_,
-                                _MM_HINT_T0);  ////////////
-#endif
+                                _MM_HINT_T0);
+    #endif
+                // Skip if candidate is in exclude_set_
+                if (exclude_set_.find(candidate_id) != exclude_set_.end()) {
+                    continue;
+                }
+
                 if (!(visited_array[candidate_id] == visited_array_tag)) {
                     visited_array[candidate_id] = visited_array_tag;
 
@@ -397,11 +422,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                     if (flag_consider_candidate) {
                         candidate_set.emplace(-dist, candidate_id);
-#ifdef USE_SSE
+    #ifdef USE_SSE
                         _mm_prefetch(data_level0_memory_ + candidate_set.top().second * size_data_per_element_ +
-                                        offsetLevel0_,  ///////////
-                                        _MM_HINT_T0);  ////////////////////////
-#endif
+                                        offsetLevel0_,
+                                        _MM_HINT_T0);
+    #endif
 
                         if (bare_bone_search || 
                             (!isMarkedDeleted(candidate_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(candidate_id))))) {
@@ -951,7 +976,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     * Adds point. Updates the point if it is already in the index.
     * If replacement of deleted elements is enabled: replaces previously deleted point if any, updating it with new point
     */
-    void addPoint(const void *data_point, labeltype label, bool replace_deleted = false) {
+    void addPoint(const void *data_point, labeltype label, int level, bool replace_deleted = false) {
         if ((allow_replace_deleted_ == false) && (replace_deleted == true)) {
             throw std::runtime_error("Replacement of deleted elements is disabled in constructor");
         }
@@ -959,7 +984,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         // lock all operations with element by label
         std::unique_lock <std::mutex> lock_label(getLabelOpMutex(label));
         if (!replace_deleted) {
-            addPoint(data_point, label, -1);
+            addPointInternal(data_point, label, level);
             return;
         }
         // check if there is vacant place
@@ -975,7 +1000,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         // if there is no vacant place then add or update point
         // else add point to vacant place
         if (!is_vacant_place) {
-            addPoint(data_point, label, -1);
+            addPointInternal(data_point, label, level);
         } else {
             // we assume that there are no concurrent operations on deleted element
             labeltype label_replaced = getExternalLabel(internal_id_replaced);
@@ -1150,7 +1175,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
-    tableint addPoint(const void *data_point, labeltype label, int level) {
+    tableint addPointInternal(const void *data_point, labeltype label, int level) {
         tableint cur_c = 0;
         {
             // Checking if the element with the same label already exists
@@ -1185,7 +1210,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
         int curlevel = getRandomLevel(mult_);
-        if (level > 0)
+        if (level >= 0)
             curlevel = level;
 
         element_levels_[cur_c] = curlevel;
@@ -1263,6 +1288,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             enterpoint_node_ = cur_c;
             maxlevel_ = curlevel;
         }
+
+        closestPoint_ = currObj;
         return cur_c;
     }
 
