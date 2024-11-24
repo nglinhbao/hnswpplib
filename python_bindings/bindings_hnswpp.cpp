@@ -249,11 +249,11 @@ public:
         
         {
             int start = 0;
-            if (!ep_added) {
-                // Prepare the index with initial data for LID computation
-                appr_alg->prepareIndex((float*)items.data());
-                ep_added = true;
-            }
+            // if (!ep_added) {
+            //     // Prepare the index with initial data for LID computation
+            //     appr_alg->prepareIndex((float*)items.data());
+            //     ep_added = true;
+            // }
 
             py::gil_scoped_release l;
             if (normalize == false) {
