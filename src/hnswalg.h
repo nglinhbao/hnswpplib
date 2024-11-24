@@ -75,6 +75,12 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     // define exclude_set_
     std::unordered_set<labeltype> exclude_set_;
 
+    float avg_distance_{0.0f};
+
+    std::vector<float> normalized_lid_;
+
+    int max_level_{0};
+
     HierarchicalNSW(SpaceInterface<dist_t> *s) {
     }
 
@@ -96,6 +102,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         size_t M = 16,
         size_t ef_construction = 200,
         bool same_m0 = false,
+        size_t ef_search = 10,
         size_t random_seed = 100,
         bool allow_replace_deleted = false)
         : label_op_locks_(MAX_LABEL_OPERATION_LOCKS),
@@ -117,7 +124,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         maxM_ = M_;
         maxM0_ = same_m0 ? M_ : M_ * 2;
         ef_construction_ = std::max(ef_construction, M_);
-        ef_ = 10;
+        ef_ = ef_search;
 
         level_generator_.seed(random_seed);
         update_probability_generator_.seed(random_seed + 1);
@@ -181,6 +188,18 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         exclude_set_ = exclude_set;
     }
 
+    void setAverageDistance(float avg_dist) {
+        avg_distance_ = avg_dist;
+    }
+
+    void setNormalizedLID(const std::vector<float> &normalized_lid) {
+        normalized_lid_ = normalized_lid;
+    }
+
+    void setMaxLevel(int max_level) {
+        max_level_ = max_level;
+    }
+
     struct CompareByFirst {
         constexpr bool operator()(std::pair<dist_t, tableint> const& a,
             std::pair<dist_t, tableint> const& b) const noexcept {
@@ -223,10 +242,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
-    int getRandomLevel(double reverse_size) {
+    int getRandomLevel(double reverse_size, int max_level) {
         std::uniform_real_distribution<double> distribution(0.0, 1.0);
         double r = -log(distribution(level_generator_)) * reverse_size;
-        return (int) r;
+        // min(r, max_level)
+        return (int) (r < max_level ? r : max_level);
     }
 
     size_t getMaxElements() {
@@ -1209,7 +1229,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
-        int curlevel = getRandomLevel(mult_);
+        int curlevel = getRandomLevel(mult_, max_level_);
         if (level >= 0)
             curlevel = level;
 
@@ -1295,7 +1315,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
 
     std::priority_queue<std::pair<dist_t, labeltype >>
-    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr) const {
+    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr, float lid_threshold = 1) const {
         std::priority_queue<std::pair<dist_t, labeltype >> result;
         if (cur_element_count == 0) return result;
 
@@ -1304,6 +1324,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         for (int level = maxlevel_; level > 0; level--) {
             bool changed = true;
+            bool exit_loops = false; // Flag to break out of both loops
+
             while (changed) {
                 changed = false;
                 unsigned int *data;
@@ -1311,23 +1333,35 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 data = (unsigned int *) get_linklist(currObj, level);
                 int size = getListCount(data);
                 metric_hops++;
-                metric_distance_computations+=size;
+                metric_distance_computations += size;
 
                 tableint *datal = (tableint *) (data + 1);
                 for (int i = 0; i < size; i++) {
                     tableint cand = datal[i];
                     if (cand < 0 || cand > max_elements_)
                         throw std::runtime_error("cand error");
+
                     dist_t d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
 
                     if (d < curdist) {
                         curdist = d;
                         currObj = cand;
                         changed = true;
+
+                        // Check the additional condition
+                        if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold) {
+                            exit_loops = true;
+                            break;
+                        }
                     }
                 }
+
+                if (exit_loops) break; // Break the while loop
             }
+
+            if (exit_loops) break; // Break the outer for loop
         }
+
 
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates;
         bool bare_bone_search = !num_deleted_ && !isIdAllowed;

@@ -6,6 +6,8 @@
 #include <random>
 #include <cmath>
 #include <numeric>
+#include <future>
+#include <omp.h>
 
 class HNSWPP {
 public:
@@ -14,7 +16,8 @@ public:
            const int M = 16,
            const int ef_construction = 200,
            const int max_level = 4,
-           const float scale_factor = 1.0f)
+           const float scale_factor = 1.0f,
+           const int ef_search = 20)
         : dim_(dim)
         , max_elements_(max_elements)
         , M_(M)
@@ -24,9 +27,9 @@ public:
         , space_(new hnswlib::L2Space(dim)) {
         
         // Initialize base layer and branches
-        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_);
-        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true);
-        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true);
+        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, std::max(1, static_cast<int>(std::round(ef_search / 2.0))));
+        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true, 1);
+        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true, 1);
     }
 
     // Prepare data and compute LID values
@@ -47,6 +50,12 @@ public:
 
         // Compute LID values and assign layers
         computeLIDValues(distances);
+
+        // set normalized LID and average distance to branches
+        branch0_->setNormalizedLID(normalized_lid_);
+        branch0_->setAverageDistance(avg_distance_);
+        branch1_->setNormalizedLID(normalized_lid_);
+        branch1_->setAverageDistance(avg_distance_);
     }
 
     // Add a single point
@@ -74,10 +83,22 @@ public:
     }
 
     // Search for k nearest neighbors
-    std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k) const {
+    std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
         // Get results from both branches
-        auto branch0_results = branch0_->searchKnn(query_data, k);
-        auto branch1_results = branch1_->searchKnn(query_data, k);
+        std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
+        std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
+
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            {
+                branch0_results = branch0_->searchKnn(query_data, 1, nullptr, lid_threshold);
+            }
+            #pragma omp section
+            {
+                branch1_results = branch1_->searchKnn(query_data, 1, nullptr, lid_threshold);
+            }
+        }
         
         // Store branch0 entry points
         std::vector<hnswlib::tableint> branch0_entry_points;
@@ -297,10 +318,24 @@ private:
         size_t num_points = distances.size();
         lid_values_.resize(num_points);
 
+        // Variables for computing avg_distance_
+        float total_distance = 0.0f;
+        size_t distance_count = 0;
+
         for (size_t i = 0; i < num_points; i++) {
             lid_values_[i] = computeLID(distances[i]);
+
+            // Sum up all distances for avg_distance_
+            for (float d : distances[i]) {
+                total_distance += d;
+                distance_count++;
+            }
         }
 
+        // Compute average distance
+        avg_distance_ = distance_count > 0 ? total_distance / distance_count : 0.0f;
+
+        // Normalize LID values and assign layers
         normalized_lid_ = normalizeLIDs(lid_values_);
         auto assignment = assignLayers(normalized_lid_, max_level_, scale_factor_);
         assigned_layers_ = std::move(std::get<0>(assignment));
@@ -327,4 +362,5 @@ private:
     std::vector<float> normalized_lid_;
     std::vector<int> assigned_layers_;
     std::vector<int> assigned_branches_;
+    float avg_distance_;
 };

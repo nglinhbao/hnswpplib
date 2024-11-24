@@ -3,14 +3,16 @@
 
 int main() {
     int dim = 16;               // Dimension of the elements
-    int max_elements = 1000;   // Maximum number of elements, should be known beforehand
+    int max_elements = 10000;   // Maximum number of elements, should be known beforehand
     int M = 16;                 // Tightly connected with internal dimensionality of the data
                                 // strongly affects the memory consumption
     int ef_construction = 200;  // Controls index search speed/build speed tradeoff
+    int ef_search = 20;      // Controls the recall of the search. The higher ef, the better the recall
+    int max_level = 10;         // Maximum number of layers
 
     // Initing index
     hnswlib::L2Space space(dim);
-    hnswlib::HierarchicalNSW<float>* alg_hnsw = new hnswlib::HierarchicalNSW<float>(&space, max_elements, M, ef_construction);
+    hnswlib::HierarchicalNSW<float>* alg_hnsw = new hnswlib::HierarchicalNSW<float>(&space, max_elements, M, ef_construction, false, ef_search);
 
     // Generate random data
     std::mt19937 rng;
@@ -20,6 +22,8 @@ int main() {
     for (int i = 0; i < dim * max_elements; i++) {
         data[i] = distrib_real(rng);
     }
+
+    alg_hnsw->setMaxLevel(max_level);
 
     // Add data to index
     for (int i = 0; i < max_elements; i++) {

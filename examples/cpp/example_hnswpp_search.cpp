@@ -9,15 +9,17 @@
 
 int main() {
     int dim = 16;               // Dimension of the elements
-    int max_elements = 1000;    // Maximum number of elements, should be known beforehand
+    int max_elements = 10000;    // Maximum number of elements, should be known beforehand
     int M = 16;                 // Tightly connected with internal dimensionality of the data
                                // strongly affects the memory consumption
     int ef_construction = 200;  // Controls index search speed/build speed tradeoff
-    int max_level = 4;         // Maximum number of layers
+    int max_level = 10;         // Maximum number of layers
     float scale_factor = 1.0f; // Scale factor for layer assignment
+    int ef_search = 20;        
+    float lid_threshold = 0.5f; // Threshold for LID values
 
     // Initing index
-    HNSWPP* index = new HNSWPP(dim, max_elements, M, ef_construction, max_level, scale_factor);
+    HNSWPP* index = new HNSWPP(dim, max_elements, M, ef_construction, max_level, scale_factor, ef_search);
 
     // Generate random data
     std::mt19937 rng;
@@ -43,7 +45,7 @@ int main() {
     std::cout << "Measuring recall..." << std::endl;
     float correct = 0;
     for (int i = 0; i < max_elements; i++) {
-        auto result = index->searchKnn(data + i * dim, k);
+        auto result = index->searchKnn(data + i * dim, k, lid_threshold);
         
         // Check if point i appears in any of the k results
         bool found = false;
@@ -77,7 +79,7 @@ int main() {
     correct = 0;
     std::cout << "Testing loaded index..." << std::endl;
     for (int i = 0; i < max_elements; i++) {
-        auto result = index->searchKnn(data + i * dim, k);
+        auto result = index->searchKnn(data + i * dim, k, lid_threshold);
         
         // Check if point i appears in any of the k results
         bool found = false;
