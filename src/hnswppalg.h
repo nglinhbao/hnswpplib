@@ -70,20 +70,26 @@ public:
 
         if (layer != 0) {
             if (branch == 0) {
-                branch0_->addPoint(point, label, layer, false);
+                branch0_->setLevel(layer);
+                branch0_->addPoint(point, label);
                 closest_point = branch0_->getClosestPoint();
             } else {
-                branch1_->addPoint(point, label, layer, false);
+                branch1_->setLevel(layer);
+                branch1_->addPoint(point, label);
                 closest_point = branch1_->getClosestPoint();
             }
         }
         
         base_layer_->setEnterpointNode(closest_point);
-        base_layer_->addPoint(point, label, 0, false);
+        base_layer_->addPoint(point, label);
     }
 
     // Search for k nearest neighbors
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
+        // Set LID threshold for branches
+        branch0_->setLIDThreshold(lid_threshold);
+        branch1_->setLIDThreshold(lid_threshold);
+
         // Get results from both branches
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
@@ -92,11 +98,11 @@ public:
         {
             #pragma omp section
             {
-                branch0_results = branch0_->searchKnn(query_data, 1, nullptr, lid_threshold);
+                branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
             }
             #pragma omp section
             {
-                branch1_results = branch1_->searchKnn(query_data, 1, nullptr, lid_threshold);
+                branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
             }
         }
         

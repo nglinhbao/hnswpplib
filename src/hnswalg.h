@@ -81,6 +81,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
     int max_level_{0};
 
+    float lid_threshold_{1.0f};
+
+    int level_{0};
+
     HierarchicalNSW(SpaceInterface<dist_t> *s) {
     }
 
@@ -198,6 +202,14 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
     void setMaxLevel(int max_level) {
         max_level_ = max_level;
+    }
+
+    void setLIDThreshold(float lid_threshold) {
+        lid_threshold_ = lid_threshold;
+    }
+
+    void setLevel(int level) {
+        level_ = level;
     }
 
     struct CompareByFirst {
@@ -996,7 +1008,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     * Adds point. Updates the point if it is already in the index.
     * If replacement of deleted elements is enabled: replaces previously deleted point if any, updating it with new point
     */
-    void addPoint(const void *data_point, labeltype label, int level, bool replace_deleted = false) {
+    void addPoint(const void *data_point, labeltype label, bool replace_deleted = false) {
         if ((allow_replace_deleted_ == false) && (replace_deleted == true)) {
             throw std::runtime_error("Replacement of deleted elements is disabled in constructor");
         }
@@ -1004,7 +1016,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         // lock all operations with element by label
         std::unique_lock <std::mutex> lock_label(getLabelOpMutex(label));
         if (!replace_deleted) {
-            addPointInternal(data_point, label, level);
+            addPointInternal(data_point, label, level_);
             return;
         }
         // check if there is vacant place
@@ -1020,7 +1032,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         // if there is no vacant place then add or update point
         // else add point to vacant place
         if (!is_vacant_place) {
-            addPointInternal(data_point, label, level);
+            addPointInternal(data_point, label, level_);
         } else {
             // we assume that there are no concurrent operations on deleted element
             labeltype label_replaced = getExternalLabel(internal_id_replaced);
@@ -1315,7 +1327,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
 
     std::priority_queue<std::pair<dist_t, labeltype >>
-    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr, float lid_threshold = 1) const {
+    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr) const {
         std::priority_queue<std::pair<dist_t, labeltype >> result;
         if (cur_element_count == 0) return result;
 
@@ -1349,7 +1361,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                         changed = true;
 
                         // Check the additional condition
-                        if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold) {
+                        if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
                             exit_loops = true;
                             break;
                         }

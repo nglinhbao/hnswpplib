@@ -1,4 +1,4 @@
-
+#include "sift_1b.cpp"
 
 void sift_test1B();
 int main() {
