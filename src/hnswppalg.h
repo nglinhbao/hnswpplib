@@ -23,7 +23,7 @@ public:
         , M_(M)
         , ef_construction_(ef_construction)
         , max_level_(max_level)
-        , scale_factor_(scale_factor)
+        , scale_factor_(1 / log(1.0 * M_))
         , space_(new hnswlib::L2Space(dim)) {
         
         // Initialize base layer and branches

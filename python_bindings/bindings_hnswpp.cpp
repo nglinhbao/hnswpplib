@@ -204,7 +204,7 @@ public:
             M,
             efConstruction,
             4,  // max_level default
-            1.0f,  // scale_factor default
+            1 / log(1.0 * M),  // scale_factor default
             default_ef
         );
         
