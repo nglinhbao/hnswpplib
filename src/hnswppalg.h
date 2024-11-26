@@ -145,6 +145,7 @@ public:
             base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
             
             auto results_from_branch1 = base_layer_->searchKnn(query_data, k/2);
+            std::cout << "Number of results from branch1: " << results_from_branch1.size() << std::endl;
             while (!results_from_branch1.empty()) {
                 final_results.push(results_from_branch1.top());
                 results_from_branch1.pop();
