@@ -187,9 +187,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         enterpoint_node_ = new_enterpoint;
     }
 
-    void setExcludeSet(const std::unordered_set<labeltype> &exclude_set_) {
+    void setExcludeSet(const std::unordered_set<labeltype> &exclude_set) {
         std::unique_lock<std::mutex> lock(global); // Ensure thread safety
-        exclude_set_ = exclude_set_;
+        exclude_set_ = exclude_set;
     }
 
     void setAverageDistance(float avg_dist) {
