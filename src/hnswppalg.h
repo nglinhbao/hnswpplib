@@ -129,6 +129,8 @@ public:
             }
         }
 
+        std::cout << "Raw 1 completed: " << final_results.size() << " results found." << std::endl;
+
         // Using branch1 entry point with updated exclude set
         if (!branch1_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
@@ -143,7 +145,7 @@ public:
             base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
         }
 
-        std::cout << "Search completed: " << final_results.size() << " results found." << std::endl;
+        std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
 
         // Combine and sort results
         std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
