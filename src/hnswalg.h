@@ -371,7 +371,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates;
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
 
-            dist_t lowerBound;
+        dist_t lowerBound;
         if (bare_bone_search || 
             (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id))))) {
             char* ep_data = getDataByInternalId(ep_id);
@@ -483,6 +483,51 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         visited_list_pool_->releaseVisitedList(vl);
         return top_candidates;
+    }
+
+
+
+
+    void getNeighborsByHeuristic2(
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
+        const size_t M) {
+        if (top_candidates.size() < M) {
+            return;
+        }
+
+        std::priority_queue<std::pair<dist_t, tableint>> queue_closest;
+        std::vector<std::pair<dist_t, tableint>> return_list;
+        while (top_candidates.size() > 0) {
+            queue_closest.emplace(-top_candidates.top().first, top_candidates.top().second);
+            top_candidates.pop();
+        }
+
+        while (queue_closest.size()) {
+            if (return_list.size() >= M)
+                break;
+            std::pair<dist_t, tableint> curent_pair = queue_closest.top();
+            dist_t dist_to_query = -curent_pair.first;
+            queue_closest.pop();
+            bool good = true;
+
+            for (std::pair<dist_t, tableint> second_pair : return_list) {
+                dist_t curdist =
+                        fstdistfunc_(getDataByInternalId(second_pair.second),
+                                        getDataByInternalId(curent_pair.second),
+                                        dist_func_param_);
+                if (curdist < dist_to_query) {
+                    good = false;
+                    break;
+                }
+            }
+            if (good) {
+                return_list.push_back(curent_pair);
+            }
+        }
+
+        for (std::pair<dist_t, tableint> curent_pair : return_list) {
+            top_candidates.emplace(-curent_pair.first, curent_pair.second);
+        }
     }
 
 
