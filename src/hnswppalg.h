@@ -29,8 +29,8 @@ public:
         
         // Initialize base layer and branches
         base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, ef_search / 2.0);
-        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true, 1);
-        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true, 1);
+        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_/2, ef_construction_/2, true, 1);
+        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_/2, ef_construction_/2, true, 1);
     }
 
     // Prepare data and compute LID values
