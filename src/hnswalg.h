@@ -377,7 +377,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             char* ep_data = getDataByInternalId(ep_id);
             dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
             lowerBound = dist;
-            if (exclude_set_.find(ep_id) == exclude_set_.end()) { // Check exclude_set_
+            if (exclude_set.find(ep_id) == exclude_set.end()) { // Check exclude_set
                 top_candidates.emplace(dist, ep_id);
                 if (!bare_bone_search && stop_condition) {
                     stop_condition->add_point_to_result(getExternalLabel(ep_id), ep_data, dist);
@@ -413,24 +413,15 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             tableint current_node_id = current_node_pair.second;
             int *data = (int *) get_linklist0(current_node_id);
             size_t size = getListCount((linklistsizeint*)data);
+
             if (collect_metrics) {
                 metric_hops++;
                 metric_distance_computations += size;
             }
 
-    #ifdef USE_SSE
-            _mm_prefetch((char *) (visited_array + *(data + 1)), _MM_HINT_T0);
-            _mm_prefetch((char *) (visited_array + *(data + 1) + 64), _MM_HINT_T0);
-            _mm_prefetch(data_level0_memory_ + (*(data + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
-            _mm_prefetch((char *) (data + 2), _MM_HINT_T0);
-    #endif
-
             for (size_t j = 1; j <= size; j++) {
                 int candidate_id = *(data + j);
-    #ifdef USE_SSE
-                _mm_prefetch((char *) (visited_array + *(data + j + 1)), _MM_HINT_T0);
-                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
-    #endif
+
                 if (!(visited_array[candidate_id] == visited_array_tag)) {
                     visited_array[candidate_id] = visited_array_tag;
 
@@ -449,10 +440,20 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                         if (bare_bone_search || 
                             (!isMarkedDeleted(candidate_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(candidate_id))))) {
-                            if (exclude_set_.find(candidate_id) == exclude_set_.end()) { // Check exclude_set_
+                            if (exclude_set.find(candidate_id) == exclude_set.end()) { // Exclude candidate_id
                                 top_candidates.emplace(dist, candidate_id);
                                 if (!bare_bone_search && stop_condition) {
                                     stop_condition->add_point_to_result(getExternalLabel(candidate_id), currObj1, dist);
+                                }
+                            } else {
+                                // Expand path for excluded candidates
+                                int *excluded_data = (int *) get_linklist0(candidate_id);
+                                size_t excluded_size = getListCount((linklistsizeint*)excluded_data);
+                                for (size_t k = 1; k <= excluded_size; k++) {
+                                    int neighbor_id = *(excluded_data + k);
+                                    if (visited_array[neighbor_id] != visited_array_tag) {
+                                        candidate_set.emplace(-dist, neighbor_id);
+                                    }
                                 }
                             }
                         }
@@ -478,16 +479,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                             lowerBound = top_candidates.top().first;
                     }
                 }
-            }
-        }
-
-        // Ensure the top_candidates has exactly ef nodes, even if some were in exclude_set_
-        while (top_candidates.size() < ef && !candidate_set.empty()) {
-            std::pair<dist_t, tableint> next_best = candidate_set.top();
-            candidate_set.pop();
-
-            if (exclude_set_.find(next_best.second) == exclude_set_.end()) {
-                top_candidates.emplace(-next_best.first, next_best.second);
             }
         }
 
