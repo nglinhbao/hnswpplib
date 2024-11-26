@@ -187,9 +187,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         enterpoint_node_ = new_enterpoint;
     }
 
-    void setExcludeSet(const std::unordered_set<labeltype> &exclude_set) {
+    void setExcludeSet(const std::unordered_set<labeltype> &exclude_set_) {
         std::unique_lock<std::mutex> lock(global); // Ensure thread safety
-        exclude_set_ = exclude_set;
+        exclude_set_ = exclude_set_;
     }
 
     void setAverageDistance(float avg_dist) {
@@ -377,7 +377,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             char* ep_data = getDataByInternalId(ep_id);
             dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
             lowerBound = dist;
-            if (exclude_set.find(ep_id) == exclude_set.end()) { // Check exclude_set
+            if (exclude_set_.find(ep_id) == exclude_set_.end()) { // Check exclude_set_
                 top_candidates.emplace(dist, ep_id);
                 if (!bare_bone_search && stop_condition) {
                     stop_condition->add_point_to_result(getExternalLabel(ep_id), ep_data, dist);
@@ -440,7 +440,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                         if (bare_bone_search || 
                             (!isMarkedDeleted(candidate_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(candidate_id))))) {
-                            if (exclude_set.find(candidate_id) == exclude_set.end()) { // Exclude candidate_id
+                            if (exclude_set_.find(candidate_id) == exclude_set_.end()) { // Exclude candidate_id
                                 top_candidates.emplace(dist, candidate_id);
                                 if (!bare_bone_search && stop_condition) {
                                     stop_condition->add_point_to_result(getExternalLabel(candidate_id), currObj1, dist);
