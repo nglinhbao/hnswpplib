@@ -274,7 +274,7 @@ class BuildExt(build_ext):
 setup(
     name='hnswpplib',
     version=__version__,
-    description='hnswlib',
+    description='hnswpplib',
     author='Yury Malkov and others',
     url='https://github.com/yurymalkov/hnsw',
     long_description="""hnsw""",

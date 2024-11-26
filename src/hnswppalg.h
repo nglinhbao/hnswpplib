@@ -22,7 +22,7 @@ public:
         , max_elements_(max_elements)
         , M_(M)
         , ef_construction_(ef_construction)
-        , max_level_(std::floor((1 / std::log(M)) * std::log(max_elements)))
+        , max_level_(std::floor((1 / std::log(M/2)) * std::log(max_elements/2)))
         , scale_factor_(1 / log(1.0 * M_))
         , space_(new hnswlib::L2Space(dim)) {
         
