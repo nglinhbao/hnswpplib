@@ -155,6 +155,8 @@ public:
             [](const auto& a, const auto& b) { return a.second == b.second; });
         sorted_results.erase(last, sorted_results.end());
 
+        std::cout << "Sort completed: " << sorted_results.size() << " results found." << std::endl;
+
         // Create final priority queue with top k results
         std::priority_queue<std::pair<float, hnswlib::labeltype>> result;
         for (int i = 0; i < std::min(k, (int)sorted_results.size()); i++) {
