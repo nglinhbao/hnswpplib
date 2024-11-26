@@ -375,36 +375,24 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
         dist_t lowerBound = dist;
 
-        // Add ep_id to top_candidates only if it's not in exclude_set_
-        if (exclude_set_.find(ep_id) == exclude_set_.end() &&
-            (bare_bone_search || 
-            (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id)))))) {
+        // Always add the entry point to the candidate set but only to top_candidates if not in exclude_set_
+        if (exclude_set_.find(ep_id) == exclude_set_.end()) {
             top_candidates.emplace(dist, ep_id);
-            if (!bare_bone_search && stop_condition) {
-                stop_condition->add_point_to_result(getExternalLabel(ep_id), ep_data, dist);
-            }
         }
-
         candidate_set.emplace(-dist, ep_id);
         visited_array[ep_id] = visited_array_tag;
+
+        size_t valid_top_candidate_count = top_candidates.size();
 
         while (!candidate_set.empty()) {
             std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
             dist_t candidate_dist = -current_node_pair.first;
 
-            bool flag_stop_search;
-            if (bare_bone_search) {
-                flag_stop_search = candidate_dist > lowerBound;
-            } else {
-                if (stop_condition) {
-                    flag_stop_search = stop_condition->should_stop_search(candidate_dist, lowerBound);
-                } else {
-                    flag_stop_search = candidate_dist > lowerBound && top_candidates.size() >= ef;
-                }
-            }
-            if (flag_stop_search) {
+            // Modified stopping condition to account for valid candidates only
+            if (valid_top_candidate_count >= ef && candidate_dist > lowerBound) {
                 break;
             }
+
             candidate_set.pop();
 
             tableint current_node_id = current_node_pair.second;
@@ -428,8 +416,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
     #ifdef USE_SSE
                 _mm_prefetch((char *) (visited_array + *(data + j + 1)), _MM_HINT_T0);
-                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_,
-                            _MM_HINT_T0);
+                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
     #endif
 
                 if (!(visited_array[candidate_id] == visited_array_tag)) {
@@ -438,51 +425,33 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                     char *currObj1 = getDataByInternalId(candidate_id);
                     dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
 
-                    bool flag_consider_candidate;
-                    if (!bare_bone_search && stop_condition) {
-                        flag_consider_candidate = stop_condition->should_consider_candidate(dist, lowerBound);
-                    } else {
-                        flag_consider_candidate = top_candidates.size() < ef || lowerBound > dist;
-                    }
-
+                    bool flag_consider_candidate = (valid_top_candidate_count < ef || lowerBound > dist);
                     if (flag_consider_candidate) {
                         candidate_set.emplace(-dist, candidate_id);
-    #ifdef USE_SSE
-                        _mm_prefetch(data_level0_memory_ + candidate_set.top().second * size_data_per_element_ +
-                                    offsetLevel0_, _MM_HINT_T0);
-    #endif
 
-                        // Add candidate_id to top_candidates only if it's not in exclude_set_
-                        if (exclude_set_.find(candidate_id) == exclude_set_.end() &&
-                            (bare_bone_search || 
-                            (!isMarkedDeleted(candidate_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(candidate_id)))))) {
+                        // Add candidate_id to top_candidates only if not in exclude_set_
+                        if (exclude_set_.find(candidate_id) == exclude_set_.end()) {
                             top_candidates.emplace(dist, candidate_id);
+                            valid_top_candidate_count++;
+
                             if (!bare_bone_search && stop_condition) {
                                 stop_condition->add_point_to_result(getExternalLabel(candidate_id), currObj1, dist);
                             }
                         }
 
-                        bool flag_remove_extra = false;
-                        if (!bare_bone_search && stop_condition) {
-                            flag_remove_extra = stop_condition->should_remove_extra();
-                        } else {
-                            flag_remove_extra = top_candidates.size() > ef;
-                        }
-                        while (flag_remove_extra) {
-                            tableint id = top_candidates.top().second;
-                            top_candidates.pop();
-                            if (!bare_bone_search && stop_condition) {
-                                stop_condition->remove_point_from_result(getExternalLabel(id), getDataByInternalId(id), dist);
-                                flag_remove_extra = stop_condition->should_remove_extra();
-                            } else {
-                                flag_remove_extra = top_candidates.size() > ef;
+                        // Remove extra nodes from top_candidates if it exceeds ef (excluding those in exclude_set_)
+                        while (valid_top_candidate_count > ef) {
+                            if (exclude_set_.find(top_candidates.top().second) == exclude_set_.end()) {
+                                valid_top_candidate_count--;
                             }
+                            top_candidates.pop();
                         }
 
-                        if (!top_candidates.empty())
+                        if (!top_candidates.empty()) {
                             lowerBound = top_candidates.top().first;
-                        else
+                        } else {
                             lowerBound = std::numeric_limits<dist_t>::max();
+                        }
                     }
                 }
             }
@@ -491,6 +460,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         visited_list_pool_->releaseVisitedList(vl);
         return top_candidates;
     }
+
 
 
 
