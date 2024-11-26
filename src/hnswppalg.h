@@ -143,6 +143,8 @@ public:
             base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
         }
 
+        std::cout << "Search completed: " << final_results.size() << " results found." << std::endl;
+
         // Combine and sort results
         std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
         while (!final_results.empty()) {
