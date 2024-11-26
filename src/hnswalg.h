@@ -73,7 +73,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     tableint closestPoint_ = {0};
 
     // define exclude_set_
-    std::unordered_set<labeltype> exclude_set_;
+    std::unordered_set<labeltype> exclude_set_ = {};
 
     float avg_distance_{0.0f};
 
