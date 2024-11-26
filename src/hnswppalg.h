@@ -103,6 +103,7 @@ public:
             #pragma omp section
             {
                 branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+                std::cout << "Number of results from branch1: " << branch1_results.size() << std::endl;
             }
         }
         
@@ -112,8 +113,6 @@ public:
             branch0_entry_points.push_back(branch0_results.top().second);
             branch0_results.pop();
         }
-
-        std::cout << "Number of results from branch1: " << branch1_results.size() << std::endl;
 
         // Store branch1 entry points
         std::vector<hnswlib::tableint> branch1_entry_points;
