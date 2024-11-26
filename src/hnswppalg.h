@@ -95,9 +95,7 @@ public:
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
         branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
-        std::cout << "Number of results from branch0: " << branch0_results.size() << std::endl;
         branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
-        std::cout << "Number of results from branch1: " << branch1_results.size() << std::endl;
         
         // Store branch0 entry points
         std::vector<hnswlib::tableint> branch0_entry_points;
@@ -122,7 +120,6 @@ public:
         if (!branch0_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch0_entry_points[0]);
             auto results_from_branch0 = base_layer_->searchKnn(query_data, k/2);
-            std::cout << "Number of results from ep0: " << results_from_branch0.size() << std::endl;
             // Store results and collect labels for exclude set
             while (!results_from_branch0.empty()) {
                 auto result = results_from_branch0.top();
@@ -137,7 +134,6 @@ public:
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
             base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
             auto results_from_branch1 = base_layer_->searchKnn(query_data, k/2);
-            std::cout << "Number of results from ep1: " << results_from_branch1.size() << std::endl;
             while (!results_from_branch1.empty()) {
                 final_results.push(results_from_branch1.top());
                 results_from_branch1.pop();
@@ -146,6 +142,8 @@ public:
             // Clear exclude set after search
             base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
         }
+
+        std::cout << "Final results size: " << final_results.size() << std::endl;
 
         // Combine and sort results
         std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
