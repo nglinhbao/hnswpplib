@@ -143,15 +143,10 @@ public:
             base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
         }
 
-        //print elements in final_results
-        while (!final_results.empty()) {
-            std::cout << final_results.top().second << " ";
-            final_results.pop();
-        }
-
         // Combine and sort results
         std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
         while (!final_results.empty()) {
+            std::cout << final_results.top().second << " " << final_results.top().first << std::endl;
             sorted_results.push_back(final_results.top());
             final_results.pop();
         }
