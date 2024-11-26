@@ -356,7 +356,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
-    // bare_bone_search means there is no check for deletions and stop condition is ignored in return of extra performance
     template <bool bare_bone_search = true, bool collect_metrics = false>
     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst>
     searchBaseLayerST(
@@ -378,9 +377,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             char* ep_data = getDataByInternalId(ep_id);
             dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
             lowerBound = dist;
-            top_candidates.emplace(dist, ep_id);
-            if (!bare_bone_search && stop_condition) {
-                stop_condition->add_point_to_result(getExternalLabel(ep_id), ep_data, dist);
+            if (exclude_set_.find(ep_id) == exclude_set_.end()) { // Check exclude_set_
+                top_candidates.emplace(dist, ep_id);
+                if (!bare_bone_search && stop_condition) {
+                    stop_condition->add_point_to_result(getExternalLabel(ep_id), ep_data, dist);
+                }
             }
             candidate_set.emplace(-dist, ep_id);
         } else {
@@ -412,27 +413,24 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             tableint current_node_id = current_node_pair.second;
             int *data = (int *) get_linklist0(current_node_id);
             size_t size = getListCount((linklistsizeint*)data);
-//                bool cur_node_deleted = isMarkedDeleted(current_node_id);
             if (collect_metrics) {
                 metric_hops++;
-                metric_distance_computations+=size;
+                metric_distance_computations += size;
             }
 
-#ifdef USE_SSE
+    #ifdef USE_SSE
             _mm_prefetch((char *) (visited_array + *(data + 1)), _MM_HINT_T0);
             _mm_prefetch((char *) (visited_array + *(data + 1) + 64), _MM_HINT_T0);
             _mm_prefetch(data_level0_memory_ + (*(data + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
             _mm_prefetch((char *) (data + 2), _MM_HINT_T0);
-#endif
+    #endif
 
             for (size_t j = 1; j <= size; j++) {
                 int candidate_id = *(data + j);
-//                    if (candidate_id == 0) continue;
-#ifdef USE_SSE
+    #ifdef USE_SSE
                 _mm_prefetch((char *) (visited_array + *(data + j + 1)), _MM_HINT_T0);
-                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_,
-                                _MM_HINT_T0);  ////////////
-#endif
+                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
+    #endif
                 if (!(visited_array[candidate_id] == visited_array_tag)) {
                     visited_array[candidate_id] = visited_array_tag;
 
@@ -448,17 +446,14 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                     if (flag_consider_candidate) {
                         candidate_set.emplace(-dist, candidate_id);
-#ifdef USE_SSE
-                        _mm_prefetch(data_level0_memory_ + candidate_set.top().second * size_data_per_element_ +
-                                        offsetLevel0_,  ///////////
-                                        _MM_HINT_T0);  ////////////////////////
-#endif
 
                         if (bare_bone_search || 
                             (!isMarkedDeleted(candidate_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(candidate_id))))) {
-                            top_candidates.emplace(dist, candidate_id);
-                            if (!bare_bone_search && stop_condition) {
-                                stop_condition->add_point_to_result(getExternalLabel(candidate_id), currObj1, dist);
+                            if (exclude_set_.find(candidate_id) == exclude_set_.end()) { // Check exclude_set_
+                                top_candidates.emplace(dist, candidate_id);
+                                if (!bare_bone_search && stop_condition) {
+                                    stop_condition->add_point_to_result(getExternalLabel(candidate_id), currObj1, dist);
+                                }
                             }
                         }
 
@@ -486,54 +481,20 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             }
         }
 
+        // Ensure the top_candidates has exactly ef nodes, even if some were in exclude_set_
+        while (top_candidates.size() < ef && !candidate_set.empty()) {
+            std::pair<dist_t, tableint> next_best = candidate_set.top();
+            candidate_set.pop();
+
+            if (exclude_set_.find(next_best.second) == exclude_set_.end()) {
+                top_candidates.emplace(-next_best.first, next_best.second);
+            }
+        }
+
         visited_list_pool_->releaseVisitedList(vl);
         return top_candidates;
     }
 
-
-
-
-    void getNeighborsByHeuristic2(
-        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
-        const size_t M) {
-        if (top_candidates.size() < M) {
-            return;
-        }
-
-        std::priority_queue<std::pair<dist_t, tableint>> queue_closest;
-        std::vector<std::pair<dist_t, tableint>> return_list;
-        while (top_candidates.size() > 0) {
-            queue_closest.emplace(-top_candidates.top().first, top_candidates.top().second);
-            top_candidates.pop();
-        }
-
-        while (queue_closest.size()) {
-            if (return_list.size() >= M)
-                break;
-            std::pair<dist_t, tableint> curent_pair = queue_closest.top();
-            dist_t dist_to_query = -curent_pair.first;
-            queue_closest.pop();
-            bool good = true;
-
-            for (std::pair<dist_t, tableint> second_pair : return_list) {
-                dist_t curdist =
-                        fstdistfunc_(getDataByInternalId(second_pair.second),
-                                        getDataByInternalId(curent_pair.second),
-                                        dist_func_param_);
-                if (curdist < dist_to_query) {
-                    good = false;
-                    break;
-                }
-            }
-            if (good) {
-                return_list.push_back(curent_pair);
-            }
-        }
-
-        for (std::pair<dist_t, tableint> curent_pair : return_list) {
-            top_candidates.emplace(-curent_pair.first, curent_pair.second);
-        }
-    }
 
 
     linklistsizeint *get_linklist0(tableint internal_id) const {
