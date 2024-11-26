@@ -106,10 +106,6 @@ public:
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
-        // Declare variables to store results
-        decltype(branch0_->searchKnn(query_data, 1, nullptr)) branch0_results;
-        decltype(branch1_->searchKnn(query_data, 1, nullptr)) branch1_results;
-
         // Create threads to perform the searches in parallel
         std::thread branch0_thread([&]() {
             branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
