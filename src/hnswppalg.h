@@ -95,6 +95,7 @@ public:
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
         branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
+        std::cout << "Number of results from branch0: " << branch0_results.size() << std::endl;
         branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
         std::cout << "Number of results from branch1: " << branch1_results.size() << std::endl;
         
