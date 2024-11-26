@@ -1,5 +1,6 @@
 #pragma once
-
+#include <thread>
+#include <future>
 #include "hnswlib.h"
 #include <vector>
 #include <memory>
@@ -69,15 +70,26 @@ public:
         hnswlib::tableint closest_point = 0;
 
         if (layer != 0) {
+            std::thread branch_thread;
+
             if (branch == 0) {
-                branch0_->setLevel(layer);
-                branch0_->addPoint(point, label);
-                closest_point = branch0_->getClosestPoint();
+                branch_thread = std::thread([&]() {
+                    branch0_->setLevel(layer);
+                    branch0_->addPoint(point, label);
+                });
+                // Use branch0_->getClosestPoint() after the thread finishes.
             } else {
-                branch1_->setLevel(layer);
-                branch1_->addPoint(point, label);
-                closest_point = branch1_->getClosestPoint();
+                branch_thread = std::thread([&]() {
+                    branch1_->setLevel(layer);
+                    branch1_->addPoint(point, label);
+                });
+                // Use branch1_->getClosestPoint() after the thread finishes.
             }
+
+            branch_thread.join(); // Ensure the thread finishes execution before proceeding.
+
+            // Retrieve the closest point after the thread completes its task.
+            closest_point = (branch == 0) ? branch0_->getClosestPoint() : branch1_->getClosestPoint();
         }
         
         base_layer_->setEnterpointNode(closest_point);
@@ -94,8 +106,22 @@ public:
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
-        branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
-        branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+        // Declare variables to store results
+        decltype(branch0_->searchKnn(query_data, 1, nullptr)) branch0_results;
+        decltype(branch1_->searchKnn(query_data, 1, nullptr)) branch1_results;
+
+        // Create threads to perform the searches in parallel
+        std::thread branch0_thread([&]() {
+            branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
+        });
+
+        std::thread branch1_thread([&]() {
+            branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+        });
+
+        // Wait for both threads to finish
+        branch0_thread.join();
+        branch1_thread.join();
         
         // Store branch0 entry points
         std::vector<hnswlib::tableint> branch0_entry_points;
