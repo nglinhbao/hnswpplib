@@ -94,18 +94,9 @@ public:
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
-        #pragma omp parallel sections
-        {
-            #pragma omp section
-            {
-                branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
-            }
-            #pragma omp section
-            {
-                branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
-                std::cout << "Number of results from branch1: " << branch1_results.size() << std::endl;
-            }
-        }
+        branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
+        branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+        std::cout << "Number of results from branch1: " << branch1_results.size() << std::endl;
         
         // Store branch0 entry points
         std::vector<hnswlib::tableint> branch0_entry_points;
