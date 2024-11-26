@@ -113,10 +113,11 @@ public:
             branch0_results.pop();
         }
 
+        std::cout << "Number of results from branch1: " << branch1_results.size() << std::endl;
+
         // Store branch1 entry points
         std::vector<hnswlib::tableint> branch1_entry_points;
         while (!branch1_results.empty()) {
-            std::cout << "Branch1 result: " << branch1_results.top().second << std::endl;
             branch1_entry_points.push_back(branch1_results.top().second);
             branch1_results.pop();
         }
