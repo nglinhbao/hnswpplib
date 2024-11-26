@@ -120,6 +120,12 @@ public:
         if (!branch0_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch0_entry_points[0]);
             auto results_from_branch0 = base_layer_->searchKnn(query_data, k/2);
+
+            std::cout << "Results from branch0: " << std::endl;
+            for (const auto& result : results_from_branch0) {
+                std::cout << "Label: " << result.first << ", Distance: " << result.second << std::endl;
+            }
+
             // Store results and collect labels for exclude set
             while (!results_from_branch0.empty()) {
                 auto result = results_from_branch0.top();
@@ -134,19 +140,22 @@ public:
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
             base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
             auto results_from_branch1 = base_layer_->searchKnn(query_data, k/2);
+
+            // Loop and PRINT elements in results_from_branch1
+
             while (!results_from_branch1.empty()) {
                 final_results.push(results_from_branch1.top());
                 results_from_branch1.pop();
             }
+
+            // Loop through and print elements in results_from_branch1
+            std::cout << "Results from branch1: " << std::endl;
+            for (const auto& result : results_from_branch1) {
+                std::cout << "Label: " << result.first << ", Distance: " << result.second << std::endl;
+            }
             
             // Clear exclude set after search
             base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
-        }
-
-        //print elements in final_results
-        while (!final_results.empty()) {
-            std::cout << final_results.top().second << " ";
-            final_results.pop();
         }
 
         // Combine and sort results
