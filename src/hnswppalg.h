@@ -61,10 +61,7 @@ public:
 
     // Add a single point
     void addPoint(const float* point, hnswlib::labeltype label) {
-        using namespace std::chrono; // Simplify namespace usage
-
-        // Start timing
-        auto start_time = high_resolution_clock::now();
+        auto start_total = std::chrono::high_resolution_clock::now();
 
         if (normalized_lid_.empty()) {
             throw std::runtime_error("LID values not computed. Call prepareIndex first.");
@@ -74,48 +71,36 @@ public:
         int branch = assigned_branches_[label];
         hnswlib::tableint closest_point = 0;
 
-        // Mark time after initial checks
-        auto after_check_time = high_resolution_clock::now();
-
         if (layer != 0) {
             if (branch == 0) {
-                auto branch0_start = high_resolution_clock::now(); // Time branch0 operations
+                auto start_branch0 = std::chrono::high_resolution_clock::now();
                 branch0_->setLevel(layer);
                 branch0_->addPoint(point, label);
                 closest_point = branch0_->getClosestPoint();
-                auto branch0_end = high_resolution_clock::now();
-                std::cout << "Branch 0 timing: " 
-                        << duration_cast<microseconds>(branch0_end - branch0_start).count() 
-                        << " microseconds" << std::endl;
+                auto end_branch0 = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> branch0_time = end_branch0 - start_branch0;
+                std::cout << "Branch 0 insertion time: " << branch0_time.count() << " ms" << std::endl;
             } else {
-                auto branch1_start = high_resolution_clock::now(); // Time branch1 operations
+                auto start_branch1 = std::chrono::high_resolution_clock::now();
                 branch1_->setLevel(layer);
                 branch1_->addPoint(point, label);
                 closest_point = branch1_->getClosestPoint();
-                auto branch1_end = high_resolution_clock::now();
-                std::cout << "Branch 1 timing: " 
-                        << duration_cast<microseconds>(branch1_end - branch1_start).count() 
-                        << " microseconds" << std::endl;
+                auto end_branch1 = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> branch1_time = end_branch1 - start_branch1;
+                std::cout << "Branch 1 insertion time: " << branch1_time.count() << " ms" << std::endl;
             }
         }
-        
-        auto before_base_time = high_resolution_clock::now(); // Timing before base layer operations
 
+        auto start_base = std::chrono::high_resolution_clock::now();
         base_layer_->setEnterpointNode(closest_point);
         base_layer_->addPoint(point, label);
+        auto end_base = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> base_time = end_base - start_base;
+        std::cout << "Base layer insertion time: " << base_time.count() << " ms" << std::endl;
 
-        auto end_time = high_resolution_clock::now(); // End timing
-
-        // Print detailed timings
-        std::cout << "Initial checks timing: " 
-                << duration_cast<microseconds>(after_check_time - start_time).count() 
-                << " microseconds" << std::endl;
-        std::cout << "Base layer timing: " 
-                << duration_cast<microseconds>(end_time - before_base_time).count() 
-                << " microseconds" << std::endl;
-        std::cout << "Total function timing: " 
-                << duration_cast<microseconds>(end_time - start_time).count() 
-                << " microseconds" << std::endl;
+        auto end_total = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> total_time = end_total - start_total;
+        std::cout << "Total insertion time: " << total_time.count() << " ms" << std::endl;
     }
 
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
