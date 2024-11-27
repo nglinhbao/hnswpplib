@@ -183,6 +183,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         return closestPoint_;
     }
 
+    void setClosestPoint(tableint closest_point) {
+        closestPoint_ = closest_point;
+    }
+
     // Function to set a new enterpoint node
     void setEnterpointNode(tableint new_enterpoint) {
         std::unique_lock<std::mutex> lock(global); // Ensure thread safety
@@ -1313,7 +1317,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                 // Update `closestPoint_` to the top of the priority queue (closest point in this layer)
                 if (!top_candidates.empty()) {
-                    closestPoint_ = top_candidates.top().second;
+                    setClosestPoint(top_candidates.top().second);
                 }
 
                 currObj = mutuallyConnectNewElement(data_point, cur_c, top_candidates, level, false);
@@ -1376,7 +1380,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                                 // If exit_loops is true, prepare single result and return
                                 result.push(std::pair<dist_t, labeltype>(d, getExternalLabel(cand)));
                                 // Set closestPoint_ before early return
-                                closestPoint_ = cand;
+                                setClosestPoint(cand);
                                 return result;
                             }
                         }
@@ -1413,7 +1417,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 }
                 temp_candidates.pop();
             }
-            closestPoint_ = closest;
+            setClosestPoint(closest);
         }
 
         while (top_candidates.size() > 0) {
