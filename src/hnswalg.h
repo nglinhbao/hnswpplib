@@ -1340,7 +1340,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
 
     std::priority_queue<std::pair<dist_t, labeltype >>
-    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr) const {
+    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr) {  // removed const
         std::priority_queue<std::pair<dist_t, labeltype >> result;
         if (cur_element_count == 0) return result;
 
@@ -1351,7 +1351,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         if (!same_m0_) {
             for (int level = maxlevel_; level > 0; level--) {
                 bool changed = true;
-                bool exit_loops = false;
 
                 while (changed) {
                     changed = false;
@@ -1377,9 +1376,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                             // Check the additional condition
                             if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
-                                // If exit_loops is true, prepare single result and return
                                 result.push(std::pair<dist_t, labeltype>(d, getExternalLabel(cand)));
-                                // Set closestPoint_ before early return
                                 setClosestPoint(cand);
                                 return result;
                             }
@@ -1403,21 +1400,18 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         while (top_candidates.size() > k) {
             top_candidates.pop();
         }
-        
-        // Find the closest point from top candidates
+
+        // Find closest point before creating final result
         if (!top_candidates.empty()) {
-            dist_t min_dist = top_candidates.top().first;
-            tableint closest = top_candidates.top().second;
-            
-            std::priority_queue<std::pair<dist_t, tableint>> temp_candidates = top_candidates;
-            while (!temp_candidates.empty()) {
-                if (temp_candidates.top().first < min_dist) {
-                    min_dist = temp_candidates.top().first;
-                    closest = temp_candidates.top().second;
+            std::pair<dist_t, tableint> closest = top_candidates.top();
+            auto temp = top_candidates;
+            while (!temp.empty()) {
+                if (temp.top().first < closest.first) {
+                    closest = temp.top();
                 }
-                temp_candidates.pop();
+                temp.pop();
             }
-            setClosestPoint(closest);
+            setClosestPoint(closest.second);
         }
 
         while (top_candidates.size() > 0) {
