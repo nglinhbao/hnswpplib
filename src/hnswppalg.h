@@ -112,13 +112,13 @@ public:
             branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
         });
 
-        std::thread branch1_thread([&]() {
-            branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
-        });
+        // std::thread branch1_thread([&]() {
+        //     branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+        // });
 
         // Wait for both threads to finish
         branch0_thread.join();
-        branch1_thread.join();
+        // branch1_thread.join();
         
         // Store branch0 entry points
         std::vector<hnswlib::tableint> branch0_entry_points;
@@ -127,12 +127,12 @@ public:
             branch0_results.pop();
         }
 
-        // Store branch1 entry points
-        std::vector<hnswlib::tableint> branch1_entry_points;
-        while (!branch1_results.empty()) {
-            branch1_entry_points.push_back(branch1_results.top().second);
-            branch1_results.pop();
-        }
+        // // Store branch1 entry points
+        // std::vector<hnswlib::tableint> branch1_entry_points;
+        // while (!branch1_results.empty()) {
+        //     branch1_entry_points.push_back(branch1_results.top().second);
+        //     branch1_results.pop();
+        // }
 
         // Create a priority queue for final results
         std::priority_queue<std::pair<float, hnswlib::labeltype>> final_results;
