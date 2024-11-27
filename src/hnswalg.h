@@ -1340,7 +1340,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
 
     std::priority_queue<std::pair<dist_t, labeltype >>
-    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr) {  // removed const
+    searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr) const {
         std::priority_queue<std::pair<dist_t, labeltype >> result;
         if (cur_element_count == 0) return result;
 
@@ -1377,7 +1377,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                             // Check the additional condition
                             if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
                                 result.push(std::pair<dist_t, labeltype>(d, getExternalLabel(cand)));
-                                setClosestPoint(cand);
+                                const_cast<HierarchicalNSW*>(this)->setClosestPoint(cand);
                                 return result;
                             }
                         }
@@ -1411,7 +1411,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 }
                 temp.pop();
             }
-            setClosestPoint(closest.second);
+            const_cast<HierarchicalNSW*>(this)->setClosestPoint(closest.second);
         }
 
         while (top_candidates.size() > 0) {
