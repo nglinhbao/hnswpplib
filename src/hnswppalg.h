@@ -29,7 +29,7 @@ public:
         , space_(new hnswlib::L2Space(dim)) {
         
         // Initialize base layer and branches
-        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, ef_search);
+        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, ef_search / 2.0);
         branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_, ef_construction_, true, 1);
         branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_, ef_construction_, true, 1);
     }
@@ -140,15 +140,41 @@ public:
         // Using branch0 entry point
         std::unordered_set<hnswlib::labeltype> intermediate_exclude_set;
 
-        base_layer_->setEnterpointNode(branch0_entry_points[0]);
-        base_layer_->setEnterpointNode1(branch1_entry_points[0]);
-        auto results = base_layer_->searchKnn(query_data, k);
+        if (!branch0_entry_points.empty()) {
+            base_layer_->setEnterpointNode(branch0_entry_points[0]);
+            auto results_from_branch0 = base_layer_->searchKnn(query_data, k);
+            // Store results and collect labels for exclude set
+            while (!results_from_branch0.empty()) {
+                auto result = results_from_branch0.top();
+                final_results.push(result);
+                // intermediate_exclude_set.insert(result.second);  // Add to exclude set
+                results_from_branch0.pop();
+            }
+        }
+
+        std::cout << "Raw 1 completed: " << final_results.size() << " results found." << std::endl;
+
+        // Using branch1 entry point with updated exclude set
+        if (!branch1_entry_points.empty()) {
+            base_layer_->setEnterpointNode(branch1_entry_points[0]);
+            // base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
+            auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
+            while (!results_from_branch1.empty()) {
+                final_results.push(results_from_branch1.top());
+                results_from_branch1.pop();
+            }
+            
+            // Clear exclude set after search
+            base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
+        }
+
+        std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
 
         // Combine and sort results
         std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
-        while (!results.empty()) {
-            sorted_results.push_back(results.top());
-            results.pop();
+        while (!final_results.empty()) {
+            sorted_results.push_back(final_results.top());
+            final_results.pop();
         }
 
         std::sort(sorted_results.begin(), sorted_results.end());

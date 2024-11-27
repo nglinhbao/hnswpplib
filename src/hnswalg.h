@@ -43,7 +43,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     std::vector<std::mutex> link_list_locks_;
 
     tableint enterpoint_node_{0};
-    tableint enterpoint_node_1_{0};
 
     size_t size_links_level0_{0};
     size_t offsetData_{0}, offsetLevel0_{0}, label_offset_{ 0 };
@@ -150,7 +149,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         // initializations for special treatment of the first node
         enterpoint_node_ = -1;
-        enterpoint_node_1_ = -1;
         maxlevel_ = -1;
 
         linkLists_ = (char **) malloc(sizeof(void *) * max_elements_);
@@ -187,10 +185,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     void setEnterpointNode(tableint new_enterpoint) {
         std::unique_lock<std::mutex> lock(global); // Ensure thread safety
         enterpoint_node_ = new_enterpoint;
-    }
-
-    void setEnterpointNode1(tableint new_enterpoint) {
-        enterpoint_node_1_ = new_enterpoint;
     }
 
     void setExcludeSet(const std::unordered_set<labeltype> &exclude_set) {
@@ -361,6 +355,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         return top_candidates;
     }
 
+
+    // bare_bone_search means there is no check for deletions and stop condition is ignored in return of extra performance
     template <bool bare_bone_search = true, bool collect_metrics = false>
     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst>
     searchBaseLayerST(
@@ -369,7 +365,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         size_t ef,
         BaseFilterFunctor* isIdAllowed = nullptr,
         BaseSearchStopCondition<dist_t>* stop_condition = nullptr) const {
-        
         VisitedList *vl = visited_list_pool_->getFreeVisitedList();
         vl_type *visited_array = vl->mass;
         vl_type visited_array_tag = vl->curV;
@@ -378,8 +373,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
 
         dist_t lowerBound;
-
-        // Initialize with the first entry point
         if (bare_bone_search || 
             (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id))))) {
             char* ep_data = getDataByInternalId(ep_id);
@@ -396,26 +389,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         visited_array[ep_id] = visited_array_tag;
-
-        // Check if the second entry point is available and process it
-        if (enterpoint_node_1_ != -1 && enterpoint_node_1_ != ep_id) {
-            if (bare_bone_search || 
-                (!isMarkedDeleted(enterpoint_node_1_) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(enterpoint_node_1_))))) {
-                char* ep_data_2 = getDataByInternalId(enterpoint_node_1_);
-                dist_t dist_2 = fstdistfunc_(data_point, ep_data_2, dist_func_param_);
-                if (dist_2 < lowerBound) {
-                    lowerBound = dist_2;
-                }
-                top_candidates.emplace(dist_2, enterpoint_node_1_);
-                if (!bare_bone_search && stop_condition) {
-                    stop_condition->add_point_to_result(getExternalLabel(enterpoint_node_1_), ep_data_2, dist_2);
-                }
-                candidate_set.emplace(-dist_2, enterpoint_node_1_);
-            }
-            visited_array[enterpoint_node_1_] = visited_array_tag;
+        if (exclude_set_ != nullptr) {
+            exclude_set_->push_back(ep_id);
         }
 
-        // Main search loop
         while (!candidate_set.empty()) {
             std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
             dist_t candidate_dist = -current_node_pair.first;
@@ -440,7 +417,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             size_t size = getListCount((linklistsizeint*)data);
             if (collect_metrics) {
                 metric_hops++;
-                metric_distance_computations += size;
+                metric_distance_computations+=size;
             }
 
     #ifdef USE_SSE
@@ -454,10 +431,18 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 int candidate_id = *(data + j);
     #ifdef USE_SSE
                 _mm_prefetch((char *) (visited_array + *(data + j + 1)), _MM_HINT_T0);
-                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
+                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_,
+                                _MM_HINT_T0);
     #endif
-                if (!(visited_array[candidate_id] == visited_array_tag)) {
+                bool is_visited = visited_array[candidate_id] == visited_array_tag;
+                bool is_excluded = exclude_set_ != nullptr && 
+                                std::find(exclude_set_->begin(), exclude_set_->end(), candidate_id) != exclude_set_->end();
+                
+                if (!is_visited && !is_excluded) {
                     visited_array[candidate_id] = visited_array_tag;
+                    if (exclude_set_ != nullptr) {
+                        exclude_set_->push_back(candidate_id);
+                    }
 
                     char *currObj1 = (getDataByInternalId(candidate_id));
                     dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
@@ -473,7 +458,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                         candidate_set.emplace(-dist, candidate_id);
     #ifdef USE_SSE
                         _mm_prefetch(data_level0_memory_ + candidate_set.top().second * size_data_per_element_ +
-                                    offsetLevel0_, _MM_HINT_T0);
+                                        offsetLevel0_,
+                                        _MM_HINT_T0);
     #endif
 
                         if (bare_bone_search || 
@@ -511,10 +497,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         visited_list_pool_->releaseVisitedList(vl);
         return top_candidates;
     }
-
-
-
-
+    
     void getNeighborsByHeuristic2(
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
         const size_t M) {
