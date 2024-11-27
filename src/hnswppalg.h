@@ -8,6 +8,7 @@
 #include <numeric>
 #include <future>
 #include <omp.h>
+#include <chrono>
 
 class HNSWPP {
 public:
@@ -84,29 +85,49 @@ public:
         base_layer_->addPoint(point, label);
     }
 
-    // Search for k nearest neighbors
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
+        auto start_total = std::chrono::high_resolution_clock::now();
+
         // Set LID threshold for branches
+        auto start_setup = std::chrono::high_resolution_clock::now();
         branch0_->setLIDThreshold(lid_threshold);
         branch1_->setLIDThreshold(lid_threshold);
+        auto end_setup = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> setup_time = end_setup - start_setup;
+        std::cout << "Setup time: " << setup_time.count() << " ms" << std::endl;
 
         // Get results from both branches
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
+        auto start_branches = std::chrono::high_resolution_clock::now();
+        
         #pragma omp parallel sections
         {
             #pragma omp section
             {
+                auto start_branch0 = std::chrono::high_resolution_clock::now();
                 branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
+                auto end_branch0 = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> branch0_time = end_branch0 - start_branch0;
+                std::cout << "Branch 0 search time: " << branch0_time.count() << " ms" << std::endl;
             }
             #pragma omp section
             {
+                auto start_branch1 = std::chrono::high_resolution_clock::now();
                 branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+                auto end_branch1 = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> branch1_time = end_branch1 - start_branch1;
+                std::cout << "Branch 1 search time: " << branch1_time.count() << " ms" << std::endl;
             }
         }
-        
+
+        auto end_branches = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> total_branches_time = end_branches - start_branches;
+        std::cout << "Total parallel branches search time: " << total_branches_time.count() << " ms" << std::endl;
+            
         // Store branch0 entry points
+        auto start_store_points = std::chrono::high_resolution_clock::now();
         std::vector<hnswlib::tableint> branch0_entry_points;
         while (!branch0_results.empty()) {
             branch0_entry_points.push_back(branch0_results.top().second);
@@ -119,17 +140,32 @@ public:
             branch1_entry_points.push_back(branch1_results.top().second);
             branch1_results.pop();
         }
+        auto end_store_points = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> store_points_time = end_store_points - start_store_points;
+        std::cout << "Store entry points time: " << store_points_time.count() << " ms" << std::endl;
 
         // Create a priority queue for final results
         std::priority_queue<std::pair<float, hnswlib::labeltype>> final_results;
+
+        auto start_base = std::chrono::high_resolution_clock::now();
 
         // Using branch0 entry point
         std::unordered_set<hnswlib::labeltype> intermediate_exclude_set;
 
         if (!branch0_entry_points.empty()) {
+            auto start_base0_setup = std::chrono::high_resolution_clock::now();
             base_layer_->setEnterpointNode(branch0_entry_points[0]);
+            auto end_base0_setup = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> base0_setup_time = end_base0_setup - start_base0_setup;
+            std::cout << "Base layer 0 setup time: " << base0_setup_time.count() << " ms" << std::endl;
+
+            auto start_base0 = std::chrono::high_resolution_clock::now();
             auto results_from_branch0 = base_layer_->searchKnn(query_data, k);
+            auto end_base0 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> base0_search_time = end_base0 - start_base0;
+            std::cout << "Base layer search from branch 0: " << base0_search_time.count() << " ms" << std::endl;
             
+            auto start_store0 = std::chrono::high_resolution_clock::now();
             // Store results and collect labels for exclude set
             while (!results_from_branch0.empty()) {
                 auto result = results_from_branch0.top();
@@ -137,24 +173,45 @@ public:
                 intermediate_exclude_set.insert(result.second);  // Add to exclude set
                 results_from_branch0.pop();
             }
+            auto end_store0 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> store0_time = end_store0 - start_store0;
+            std::cout << "Store results from branch 0: " << store0_time.count() << " ms" << std::endl;
         }
 
         // Using branch1 entry point with updated exclude set
         if (!branch1_entry_points.empty()) {
+            auto start_base1_setup = std::chrono::high_resolution_clock::now();
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
-            base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
+            base_layer_->setExcludeSet(intermediate_exclude_set);
+            auto end_base1_setup = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> base1_setup_time = end_base1_setup - start_base1_setup;
+            std::cout << "Base layer 1 setup time: " << base1_setup_time.count() << " ms" << std::endl;
             
+            auto start_base1 = std::chrono::high_resolution_clock::now();
             auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
+            auto end_base1 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> base1_search_time = end_base1 - start_base1;
+            std::cout << "Base layer search from branch 1: " << base1_search_time.count() << " ms" << std::endl;
+
+            auto start_store1 = std::chrono::high_resolution_clock::now();
             while (!results_from_branch1.empty()) {
                 final_results.push(results_from_branch1.top());
                 results_from_branch1.pop();
             }
+            auto end_store1 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> store1_time = end_store1 - start_store1;
+            std::cout << "Store results from branch 1: " << store1_time.count() << " ms" << std::endl;
             
             // Clear exclude set after search
             base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
         }
 
+        auto end_base = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> total_base_time = end_base - start_base;
+        std::cout << "Total base layer search time: " << total_base_time.count() << " ms" << std::endl;
+
         // Combine and sort results
+        auto start_combine = std::chrono::high_resolution_clock::now();
         std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
         while (!final_results.empty()) {
             sorted_results.push_back(final_results.top());
@@ -171,6 +228,13 @@ public:
         for (int i = 0; i < std::min(k, (int)sorted_results.size()); i++) {
             result.push(sorted_results[i]);
         }
+        auto end_combine = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> combine_time = end_combine - start_combine;
+        std::cout << "Combine and sort results time: " << combine_time.count() << " ms" << std::endl;
+
+        auto end_total = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> total_time = end_total - start_total;
+        std::cout << "Total search time: " << total_time.count() << " ms" << std::endl;
 
         return result;
     }
