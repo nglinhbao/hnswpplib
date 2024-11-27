@@ -147,26 +147,26 @@ public:
             while (!results_from_branch0.empty()) {
                 auto result = results_from_branch0.top();
                 final_results.push(result);
-                // intermediate_exclude_set.insert(result.second);  // Add to exclude set
+                intermediate_exclude_set.insert(result.second);  // Add to exclude set
                 results_from_branch0.pop();
             }
         }
 
         std::cout << "Raw 1 completed: " << final_results.size() << " results found." << std::endl;
 
-        // Using branch1 entry point with updated exclude set
-        if (!branch1_entry_points.empty()) {
-            base_layer_->setEnterpointNode(branch1_entry_points[0]);
-            // base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
-            auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
-            while (!results_from_branch1.empty()) {
-                final_results.push(results_from_branch1.top());
-                results_from_branch1.pop();
-            }
+        // // Using branch1 entry point with updated exclude set
+        // if (!branch1_entry_points.empty()) {
+        //     base_layer_->setEnterpointNode(branch1_entry_points[0]);
+        //     base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
+        //     auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
+        //     while (!results_from_branch1.empty()) {
+        //         final_results.push(results_from_branch1.top());
+        //         results_from_branch1.pop();
+        //     }
             
-            // Clear exclude set after search
-            base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
-        }
+        //     // Clear exclude set after search
+        //     base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
+        // }
 
         std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
 
