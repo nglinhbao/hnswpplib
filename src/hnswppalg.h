@@ -102,25 +102,17 @@ public:
 
         auto start_branches = std::chrono::high_resolution_clock::now();
         
-        #pragma omp parallel sections
-        {
-            #pragma omp section
-            {
-                auto start_branch0 = std::chrono::high_resolution_clock::now();
-                branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
-                auto end_branch0 = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double, std::milli> branch0_time = end_branch0 - start_branch0;
-                std::cout << "Branch 0 search time: " << branch0_time.count() << " ms" << std::endl;
-            }
-            #pragma omp section
-            {
-                auto start_branch1 = std::chrono::high_resolution_clock::now();
-                branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
-                auto end_branch1 = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double, std::milli> branch1_time = end_branch1 - start_branch1;
-                std::cout << "Branch 1 search time: " << branch1_time.count() << " ms" << std::endl;
-            }
-        }
+        auto start_branch0 = std::chrono::high_resolution_clock::now();
+        branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
+        auto end_branch0 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> branch0_time = end_branch0 - start_branch0;
+        std::cout << "Branch 0 search time: " << branch0_time.count() << " ms" << std::endl;
+
+        auto start_branch1 = std::chrono::high_resolution_clock::now();
+        branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+        auto end_branch1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> branch1_time = end_branch1 - start_branch1;
+        std::cout << "Branch 1 search time: " << branch1_time.count() << " ms" << std::endl;
 
         auto end_branches = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_branches_time = end_branches - start_branches;
