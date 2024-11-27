@@ -1327,7 +1327,44 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         return cur_c;
     }
 
+    std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> 
+    searchKnnInternal(const void *data_point, labeltype label) {
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates;
+        
+        if (cur_element_count == 0) return top_candidates;
 
+        tableint currObj = enterpoint_node_;
+        dist_t curdist = fstdistfunc_(data_point, getDataByInternalId(currObj), dist_func_param_);
+
+        if (maxlevel_ > 0) {
+            for (int level = maxlevel_; level > 0; level--) {
+                bool changed = true;
+                while (changed) {
+                    changed = false;
+                    unsigned int *data;
+                    data = get_linklist(currObj, level);
+                    int size = getListCount(data);
+
+                    tableint *datal = (tableint *) (data + 1);
+                    for (int i = 0; i < size; i++) {
+                        tableint cand = datal[i];
+                        if (cand < 0 || cand > max_elements_)
+                            throw std::runtime_error("cand error");
+                        
+                        dist_t d = fstdistfunc_(data_point, getDataByInternalId(cand), dist_func_param_);
+                        if (d < curdist) {
+                            curdist = d;
+                            currObj = cand;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        top_candidates = searchBaseLayer(currObj, data_point, 1);
+        return top_candidates;
+    }
 
     std::priority_queue<std::pair<dist_t, labeltype >>
     searchKnn(const void *query_data, size_t k, BaseFilterFunctor* isIdAllowed = nullptr) const {
