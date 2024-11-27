@@ -1376,6 +1376,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                     currObj, query_data, std::max(ef_, k), isIdAllowed);
         }
 
+        std::cout << "Top candidates size: " << top_candidates.size() << std::endl;
+
         while (top_candidates.size() > k) {
             top_candidates.pop();
         }
