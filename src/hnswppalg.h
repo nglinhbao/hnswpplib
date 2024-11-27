@@ -108,17 +108,17 @@ public:
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
         // Create threads to perform the searches in parallel
-        // std::thread branch0_thread([&]() {
+        std::thread branch0_thread([&]() {
             branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
-        // });
+        });
 
-        // std::thread branch1_thread([&]() {
-        //     branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
-        // });
+        std::thread branch1_thread([&]() {
+            branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+        });
 
         // Wait for both threads to finish
-        // branch0_thread.join();
-        // branch1_thread.join();
+        branch0_thread.join();
+        branch1_thread.join();
         
         // Store branch0 entry points
         std::vector<hnswlib::tableint> branch0_entry_points;
@@ -128,11 +128,11 @@ public:
         }
 
         // // Store branch1 entry points
-        // std::vector<hnswlib::tableint> branch1_entry_points;
-        // while (!branch1_results.empty()) {
-        //     branch1_entry_points.push_back(branch1_results.top().second);
-        //     branch1_results.pop();
-        // }
+        std::vector<hnswlib::tableint> branch1_entry_points;
+        while (!branch1_results.empty()) {
+            branch1_entry_points.push_back(branch1_results.top().second);
+            branch1_results.pop();
+        }
 
         // Create a priority queue for final results
         std::priority_queue<std::pair<float, hnswlib::labeltype>> final_results;
@@ -154,47 +154,47 @@ public:
 
         std::cout << "Raw 1 completed: " << final_results.size() << " results found." << std::endl;
 
-        // // Using branch1 entry point with updated exclude set
-        // if (!branch1_entry_points.empty()) {
-        //     base_layer_->setEnterpointNode(branch1_entry_points[0]);
-        //     base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
-        //     auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
-        //     while (!results_from_branch1.empty()) {
-        //         final_results.push(results_from_branch1.top());
-        //         results_from_branch1.pop();
-        //     }
+        // Using branch1 entry point with updated exclude set
+        if (!branch1_entry_points.empty()) {
+            base_layer_->setEnterpointNode(branch1_entry_points[0]);
+            base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
+            auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
+            while (!results_from_branch1.empty()) {
+                final_results.push(results_from_branch1.top());
+                results_from_branch1.pop();
+            }
             
-        //     // Clear exclude set after search
-        //     base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
-        // }
+            // Clear exclude set after search
+            base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
+        }
 
-        // std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
+        std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
 
-        // // Combine and sort results
-        // std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
-        // while (!final_results.empty()) {
-        //     sorted_results.push_back(final_results.top());
-        //     final_results.pop();
-        // }
+        // Combine and sort results
+        std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
+        while (!final_results.empty()) {
+            sorted_results.push_back(final_results.top());
+            final_results.pop();
+        }
 
-        // std::sort(sorted_results.begin(), sorted_results.end());
-        // auto last = std::unique(sorted_results.begin(), sorted_results.end(),
-        //     [](const auto& a, const auto& b) { return a.second == b.second; });
-        // sorted_results.erase(last, sorted_results.end());
+        std::sort(sorted_results.begin(), sorted_results.end());
+        auto last = std::unique(sorted_results.begin(), sorted_results.end(),
+            [](const auto& a, const auto& b) { return a.second == b.second; });
+        sorted_results.erase(last, sorted_results.end());
 
-        // std::cout << "Sort completed: " << sorted_results.size() << " results found." << std::endl;
+        std::cout << "Sort completed: " << sorted_results.size() << " results found." << std::endl;
 
-        // // Create final priority queue with top k results
-        // std::priority_queue<std::pair<float, hnswlib::labeltype>> result;
-        // for (int i = 0; i < std::min(k, (int)sorted_results.size()); i++) {
-        //     result.push(sorted_results[i]);
-        // }
+        // Create final priority queue with top k results
+        std::priority_queue<std::pair<float, hnswlib::labeltype>> result;
+        for (int i = 0; i < std::min(k, (int)sorted_results.size()); i++) {
+            result.push(sorted_results[i]);
+        }
 
-        // std::cout << "Search completed: " << result.size() << " results found." << std::endl;
+        std::cout << "Search completed: " << result.size() << " results found." << std::endl;
 
-        // return result;
+        return result;
 
-        return final_results;
+        // return final_results;
     }
 
     // Save index files

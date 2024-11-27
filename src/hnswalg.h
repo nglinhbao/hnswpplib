@@ -357,7 +357,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
 
     // bare_bone_search means there is no check for deletions and stop condition is ignored in return of extra performance
-    template <bool bare_bone_search = true, bool collect_metrics = false>
+    template <bool bare_bone_search = false, bool collect_metrics = false>
     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst>
     searchBaseLayerST(
         tableint ep_id,
@@ -1375,8 +1375,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             top_candidates = searchBaseLayerST<false>(
                     currObj, query_data, std::max(ef_, k), isIdAllowed);
         }
-
-        std::cout << "Top candidates size: " << top_candidates.size() << std::endl;
 
         while (top_candidates.size() > k) {
             top_candidates.pop();
