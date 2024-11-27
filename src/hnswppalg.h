@@ -85,9 +85,9 @@ public:
             std::vector<hnswlib::tableint> entry_points;
             
             if (branch == 0) {
-                branch_results = branch0_->searchKnn(point, 1, nullptr);
+                branch_results = branch0_->searchKnn(label, 1, nullptr);
             } else {
-                branch_results = branch1_->searchKnn(point, 1, nullptr);
+                branch_results = branch1_->searchKnn(label, 1, nullptr);
             }
 
             // Store entry points
