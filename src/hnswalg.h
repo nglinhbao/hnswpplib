@@ -356,7 +356,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
-    // bare_bone_search means there is no check for deletions and stop condition is ignored in return of extra performance
     template <bool bare_bone_search = true, bool collect_metrics = false>
     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst>
     searchBaseLayerST(
@@ -389,9 +388,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         visited_array[ep_id] = visited_array_tag;
-        if (exclude_set_ != nullptr) {
-            exclude_set_->push_back(ep_id);
-        }
 
         while (!candidate_set.empty()) {
             std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
@@ -435,14 +431,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                                 _MM_HINT_T0);
     #endif
                 bool is_visited = visited_array[candidate_id] == visited_array_tag;
-                bool is_excluded = exclude_set_ != nullptr && 
-                                std::find(exclude_set_->begin(), exclude_set_->end(), candidate_id) != exclude_set_->end();
+                bool is_excluded = !exclude_set_.empty() && exclude_set_.find(getExternalLabel(candidate_id)) != exclude_set_.end();
                 
                 if (!is_visited && !is_excluded) {
                     visited_array[candidate_id] = visited_array_tag;
-                    if (exclude_set_ != nullptr) {
-                        exclude_set_->push_back(candidate_id);
-                    }
 
                     char *currObj1 = (getDataByInternalId(candidate_id));
                     dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
