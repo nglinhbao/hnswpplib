@@ -1375,6 +1375,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                             if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
                                 // If exit_loops is true, prepare single result and return
                                 result.push(std::pair<dist_t, labeltype>(d, getExternalLabel(cand)));
+                                // Set closestPoint_ before early return
                                 closestPoint_ = cand;
                                 return result;
                             }
@@ -1398,6 +1399,23 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         while (top_candidates.size() > k) {
             top_candidates.pop();
         }
+        
+        // Find the closest point from top candidates
+        if (!top_candidates.empty()) {
+            dist_t min_dist = top_candidates.top().first;
+            tableint closest = top_candidates.top().second;
+            
+            std::priority_queue<std::pair<dist_t, tableint>> temp_candidates = top_candidates;
+            while (!temp_candidates.empty()) {
+                if (temp_candidates.top().first < min_dist) {
+                    min_dist = temp_candidates.top().first;
+                    closest = temp_candidates.top().second;
+                }
+                temp_candidates.pop();
+            }
+            closestPoint_ = closest;
+        }
+
         while (top_candidates.size() > 0) {
             std::pair<dist_t, tableint> rez = top_candidates.top();
             result.push(std::pair<dist_t, labeltype>(rez.first, getExternalLabel(rez.second)));
