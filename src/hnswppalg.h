@@ -98,13 +98,19 @@ public:
                 branch_results.pop();
             }
 
+            std::cout << "Entry points size: " << entry_points.size() << std::endl;
+
             // Set enterpoint if we found any
             if (!entry_points.empty()) {
                 base_layer_->setEnterpointNode(entry_points[0]);
             }
+
+            std::cout << "Enterpoint set" << std::endl;
         }
         
         base_layer_->addPoint(point, label);
+
+        std::cout << "Point added" << std::endl;
     }
 
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
