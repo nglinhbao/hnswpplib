@@ -94,7 +94,7 @@ public:
         branch1_->setLIDThreshold(lid_threshold);
         // auto end_setup = std::chrono::high_resolution_clock::now();
         // std::chrono::duration<double, std::milli> setup_time = end_setup - start_setup;
-        std::cout << "Setup time: " << setup_time.count() << " ms" << std::endl;
+        // std::cout << "Setup time: " << setup_time.count() << " ms" << std::endl;
 
         // Get results from both branches
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
