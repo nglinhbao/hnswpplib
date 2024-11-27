@@ -142,12 +142,12 @@ public:
 
         if (!branch0_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch0_entry_points[0]);
-            auto results_from_branch0 = base_layer_->searchKnn(query_data, k/2);
+            auto results_from_branch0 = base_layer_->searchKnn(query_data, k);
             // Store results and collect labels for exclude set
             while (!results_from_branch0.empty()) {
                 auto result = results_from_branch0.top();
                 final_results.push(result);
-                intermediate_exclude_set.insert(result.second);  // Add to exclude set
+                // intermediate_exclude_set.insert(result.second);  // Add to exclude set
                 results_from_branch0.pop();
             }
         }
@@ -157,8 +157,8 @@ public:
         // Using branch1 entry point with updated exclude set
         if (!branch1_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
-            base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
-            auto results_from_branch1 = base_layer_->searchKnn(query_data, k/2);
+            // base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
+            auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
             while (!results_from_branch1.empty()) {
                 final_results.push(results_from_branch1.top());
                 results_from_branch1.pop();
