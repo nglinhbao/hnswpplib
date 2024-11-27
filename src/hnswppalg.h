@@ -81,15 +81,13 @@ public:
             }
         }
         else {
-            std::priority_queue<std::pair<float, hnswlib::tableint>, 
-                std::vector<std::pair<float, hnswlib::tableint>>, 
-                hnswlib::HierarchicalNSW<float>::CompareByFirst> branch_results;
+            std::priority_queue<std::pair<float, hnswlib::labeltype>> branch_results;
             std::vector<hnswlib::tableint> entry_points;
-                
+            
             if (branch == 0) {
-                branch_results = branch0_->searchKnnInternal(point, label);
+                branch_results = branch0_->searchKnn(point, 1, nullptr);
             } else {
-                branch_results = branch1_->searchKnnInternal(point, label);
+                branch_results = branch1_->searchKnn(point, 1, nullptr);
             }
 
             // Store entry points
@@ -105,7 +103,7 @@ public:
                 base_layer_->setEnterpointNode(entry_points[0]);
             }
         }
-            
+        
         base_layer_->addPoint(point, label);
     }
 
