@@ -1231,8 +1231,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
         // int curlevel = getRandomLevel(mult_, max_level_);
-        if (level >= 0)
-            curlevel = level;
+        int curlevel = level;
 
         element_levels_[cur_c] = curlevel;
 
