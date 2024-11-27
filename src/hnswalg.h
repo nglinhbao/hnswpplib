@@ -245,7 +245,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         if (search != label_lookup_.end()) {
             return search->second;
         }
-        return -1;  // Or throw an exception if label not found
+        // throw an exception if label not found
+        throw std::runtime_error("Label not found in label_lookup_");
     }
 
 
