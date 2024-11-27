@@ -127,6 +127,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
         maxM_ = M_;
         maxM0_ = same_m0 ? M_ : M_ * 2;
+        same_m0_ = same_m0;
         ef_construction_ = std::max(ef_construction, M_);
         ef_ = ef_search;
 
@@ -1334,8 +1335,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         tableint currObj = enterpoint_node_;
         dist_t curdist = fstdistfunc_(query_data, getDataByInternalId(enterpoint_node_), dist_func_param_);
 
-        // If same_m0, skip directly to base layer search
-        if (!same_m0) {
+        // If same_m0_, skip directly to base layer search
+        if (!same_m0_) {
             for (int level = maxlevel_; level > 0; level--) {
                 bool changed = true;
                 bool exit_loops = false;
