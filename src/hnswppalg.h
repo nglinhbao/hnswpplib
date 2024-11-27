@@ -81,8 +81,10 @@ public:
             }
         }
         else {
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> branch_results;
-            std::vector<tableint> entry_points;
+            std::priority_queue<std::pair<float, hnswlib::tableint>, 
+                std::vector<std::pair<float, hnswlib::tableint>>, 
+                hnswlib::HierarchicalNSW<float>::CompareByFirst> branch_results;
+            std::vector<hnswlib::tableint> entry_points;
                 
             if (branch == 0) {
                 branch_results = branch0_->searchKnnInternal(point, label);
@@ -95,8 +97,6 @@ public:
                 entry_points.push_back(branch_results.top().second);
                 branch_results.pop();
             }
-
-            std::cout << "Entry point: " << entry_points[0] << std::endl;
 
             // Set enterpoint if we found any
             if (!entry_points.empty()) {
