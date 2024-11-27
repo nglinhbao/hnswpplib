@@ -152,7 +152,7 @@ public:
             std::cout << "Base layer 0 setup time: " << base0_setup_time.count() << " ms" << std::endl;
 
             auto start_base0 = std::chrono::high_resolution_clock::now();
-            auto results_from_branch0 = base_layer_->searchKnn(query_data, k);
+            auto results_from_branch0 = base_layer_->searchKnn(query_data, k/2);
             auto end_base0 = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> base0_search_time = end_base0 - start_base0;
             std::cout << "Base layer search from branch 0: " << base0_search_time.count() << " ms" << std::endl;
@@ -180,7 +180,7 @@ public:
             std::cout << "Base layer 1 setup time: " << base1_setup_time.count() << " ms" << std::endl;
             
             auto start_base1 = std::chrono::high_resolution_clock::now();
-            auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
+            auto results_from_branch1 = base_layer_->searchKnn(query_data, k/2);
             auto end_base1 = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> base1_search_time = end_base1 - start_base1;
             std::cout << "Base layer search from branch 1: " << base1_search_time.count() << " ms" << std::endl;
