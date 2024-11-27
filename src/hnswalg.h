@@ -356,6 +356,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
+    // bare_bone_search means there is no check for deletions and stop condition is ignored in return of extra performance
     template <bool bare_bone_search = true, bool collect_metrics = false>
     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst>
     searchBaseLayerST(
@@ -377,11 +378,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             char* ep_data = getDataByInternalId(ep_id);
             dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
             lowerBound = dist;
-            if (exclude_set_.find(getExternalLabel(ep_id)) == exclude_set_.end()) { // Check exclude_set
-                top_candidates.emplace(dist, ep_id);
-                if (!bare_bone_search && stop_condition) {
-                    stop_condition->add_point_to_result(getExternalLabel(ep_id), ep_data, dist);
-                }
+            top_candidates.emplace(dist, ep_id);
+            if (!bare_bone_search && stop_condition) {
+                stop_condition->add_point_to_result(getExternalLabel(ep_id), ep_data, dist);
             }
             candidate_set.emplace(-dist, ep_id);
         } else {
@@ -413,15 +412,27 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             tableint current_node_id = current_node_pair.second;
             int *data = (int *) get_linklist0(current_node_id);
             size_t size = getListCount((linklistsizeint*)data);
-
+//                bool cur_node_deleted = isMarkedDeleted(current_node_id);
             if (collect_metrics) {
                 metric_hops++;
-                metric_distance_computations += size;
+                metric_distance_computations+=size;
             }
+
+#ifdef USE_SSE
+            _mm_prefetch((char *) (visited_array + *(data + 1)), _MM_HINT_T0);
+            _mm_prefetch((char *) (visited_array + *(data + 1) + 64), _MM_HINT_T0);
+            _mm_prefetch(data_level0_memory_ + (*(data + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
+            _mm_prefetch((char *) (data + 2), _MM_HINT_T0);
+#endif
 
             for (size_t j = 1; j <= size; j++) {
                 int candidate_id = *(data + j);
-
+//                    if (candidate_id == 0) continue;
+#ifdef USE_SSE
+                _mm_prefetch((char *) (visited_array + *(data + j + 1)), _MM_HINT_T0);
+                _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_,
+                                _MM_HINT_T0);  ////////////
+#endif
                 if (!(visited_array[candidate_id] == visited_array_tag)) {
                     visited_array[candidate_id] = visited_array_tag;
 
@@ -437,24 +448,17 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                     if (flag_consider_candidate) {
                         candidate_set.emplace(-dist, candidate_id);
+#ifdef USE_SSE
+                        _mm_prefetch(data_level0_memory_ + candidate_set.top().second * size_data_per_element_ +
+                                        offsetLevel0_,  ///////////
+                                        _MM_HINT_T0);  ////////////////////////
+#endif
 
                         if (bare_bone_search || 
                             (!isMarkedDeleted(candidate_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(candidate_id))))) {
-                            if (exclude_set_.find(getExternalLabel(candidate_id)) == exclude_set_.end()) { // Exclude candidate_id
-                                top_candidates.emplace(dist, candidate_id);
-                                if (!bare_bone_search && stop_condition) {
-                                    stop_condition->add_point_to_result(getExternalLabel(candidate_id), currObj1, dist);
-                                }
-                            } else {
-                                // Expand path for excluded candidates
-                                int *excluded_data = (int *) get_linklist0(candidate_id);
-                                size_t excluded_size = getListCount((linklistsizeint*)excluded_data);
-                                for (size_t k = 1; k <= excluded_size; k++) {
-                                    int neighbor_id = *(excluded_data + k);
-                                    if (visited_array[neighbor_id] != visited_array_tag) {
-                                        candidate_set.emplace(-dist, neighbor_id);
-                                    }
-                                }
+                            top_candidates.emplace(dist, candidate_id);
+                            if (!bare_bone_search && stop_condition) {
+                                stop_condition->add_point_to_result(getExternalLabel(candidate_id), currObj1, dist);
                             }
                         }
 
@@ -1230,7 +1234,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
-        // int curlevel = getRandomLevel(mult_, max_level_);
         int curlevel = level;
 
         element_levels_[cur_c] = curlevel;
