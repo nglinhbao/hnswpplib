@@ -8,7 +8,7 @@
 #include <numeric>
 #include <future>
 #include <omp.h>
-#include <chrono>
+// #include <chrono>
 
 class HNSWPP {
 public:
@@ -61,8 +61,6 @@ public:
 
     // Add a single point
     void addPoint(const float* point, hnswlib::labeltype label) {
-        auto start_total = std::chrono::high_resolution_clock::now();
-
         if (normalized_lid_.empty()) {
             throw std::runtime_error("LID values not computed. Call prepareIndex first.");
         }
@@ -73,34 +71,18 @@ public:
 
         if (layer != 0) {
             if (branch == 0) {
-                auto start_branch0 = std::chrono::high_resolution_clock::now();
                 branch0_->setLevel(layer);
                 branch0_->addPoint(point, label);
                 closest_point = branch0_->getClosestPoint();
-                auto end_branch0 = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double, std::milli> branch0_time = end_branch0 - start_branch0;
-                std::cout << "Branch 0 insertion time: " << branch0_time.count() << " ms" << std::endl;
             } else {
-                auto start_branch1 = std::chrono::high_resolution_clock::now();
                 branch1_->setLevel(layer);
                 branch1_->addPoint(point, label);
                 closest_point = branch1_->getClosestPoint();
-                auto end_branch1 = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double, std::milli> branch1_time = end_branch1 - start_branch1;
-                std::cout << "Branch 1 insertion time: " << branch1_time.count() << " ms" << std::endl;
             }
         }
-
-        auto start_base = std::chrono::high_resolution_clock::now();
+        
         base_layer_->setEnterpointNode(closest_point);
         base_layer_->addPoint(point, label);
-        auto end_base = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> base_time = end_base - start_base;
-        std::cout << "Base layer insertion time: " << base_time.count() << " ms" << std::endl;
-
-        auto end_total = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> total_time = end_total - start_total;
-        std::cout << "Total insertion time: " << total_time.count() << " ms" << std::endl;
     }
 
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
