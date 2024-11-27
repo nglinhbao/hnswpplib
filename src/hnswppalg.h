@@ -90,6 +90,8 @@ public:
                 branch_results = branch1_->searchKnn(point, 1, nullptr);
             }
 
+            std::cout << "Branch results size: " << branch_results.size() << std::endl;
+
             // Store entry points
             while (!branch_results.empty()) {
                 entry_points.push_back(branch_results.top().second);
