@@ -98,6 +98,8 @@ public:
                 branch_results.pop();
             }
 
+            std::cout << "Entry point: " << entry_points[0] << std::endl;
+
             // Set enterpoint if we found any
             if (!entry_points.empty()) {
                 base_layer_->setEnterpointNode(entry_points[0]);
