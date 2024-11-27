@@ -90,27 +90,21 @@ public:
                 branch_results = branch1_->searchKnn(point, 1, nullptr);
             }
 
-            std::cout << "Branch results size: " << branch_results.size() << std::endl;
-
             // Store entry points
             while (!branch_results.empty()) {
                 entry_points.push_back(branch_results.top().second);
                 branch_results.pop();
             }
 
-            std::cout << "Entry points size: " << entry_points.size() << std::endl;
-
             // Set enterpoint if we found any
             if (!entry_points.empty()) {
-                base_layer_->setEnterpointNode(entry_points[0]);
+                // use getExternalLabel to convert entry_points[0] to external label
+                auto closet = base_layer_->getExternalLabeLp(entry_points[0]);
+                base_layer_->setEnterpointNode(auto);
             }
-
-            std::cout << "Enterpoint set" << std::endl;
         }
         
         base_layer_->addPoint(point, label);
-
-        std::cout << "Point added" << std::endl;
     }
 
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
