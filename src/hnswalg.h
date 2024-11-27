@@ -240,16 +240,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         return return_label;
     }
 
-    inline tableint getInternalLabel(labeltype label) const {
-        auto search = label_lookup_.find(label);
-        if (search != label_lookup_.end()) {
-            return search->second;
-        }
-        // throw an exception if label not found
-        throw std::runtime_error("Label not found in label_lookup_");
-    }
-
-
     inline void setExternalLabel(tableint internal_id, labeltype label) const {
         memcpy((data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_), &label, sizeof(labeltype));
     }
@@ -1385,6 +1375,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                             if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
                                 // If exit_loops is true, prepare single result and return
                                 result.push(std::pair<dist_t, labeltype>(d, getExternalLabel(cand)));
+                                closestPoint_ = cand;
                                 return result;
                             }
                         }

@@ -86,20 +86,11 @@ public:
             
             if (branch == 0) {
                 branch_results = branch0_->searchKnn(point, 1, nullptr);
+                auto closest = branch1_->getClosestPoint();
+                base_layer_->setEnterpointNode(closest);
             } else {
                 branch_results = branch1_->searchKnn(point, 1, nullptr);
-            }
-
-            // Store entry points
-            while (!branch_results.empty()) {
-                entry_points.push_back(branch_results.top().second);
-                branch_results.pop();
-            }
-
-            // Set enterpoint if we found any
-            if (!entry_points.empty()) {
-                // use getExternalLabel to convert entry_points[0] to external label
-                auto closest = base_layer_->getInternalLabel(entry_points[0]);
+                auto closest = branch1_->getClosestPoint();
                 base_layer_->setEnterpointNode(closest);
             }
         }
