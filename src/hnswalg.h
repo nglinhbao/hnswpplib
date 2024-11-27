@@ -240,6 +240,14 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         return return_label;
     }
 
+    inline tableint getInternalLabel(labeltype label) const {
+        auto search = label_lookup_.find(label);
+        if (search != label_lookup_.end()) {
+            return search->second;
+        }
+        return -1;  // Or throw an exception if label not found
+    }
+
 
     inline void setExternalLabel(tableint internal_id, labeltype label) const {
         memcpy((data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_), &label, sizeof(labeltype));

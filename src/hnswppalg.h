@@ -99,7 +99,7 @@ public:
             // Set enterpoint if we found any
             if (!entry_points.empty()) {
                 // use getExternalLabel to convert entry_points[0] to external label
-                auto closest = base_layer_->getExternalLabeLp(entry_points[0]);
+                auto closest = base_layer_->getInternalLabel(entry_points[0]);
                 base_layer_->setEnterpointNode(closest);
             }
         }
