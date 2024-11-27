@@ -23,15 +23,15 @@ public:
         , max_elements_(max_elements)
         , M_(M)
         , ef_construction_(ef_construction)
-        , max_level_(std::floor((1 / std::log(M/2)) * std::log(max_elements/2)))
+        , max_level_(std::floor((1 / std::log(M)) * std::log(max_elements/2)))
         // , max_level_(max_level)
         , scale_factor_(1 / log(1.0 * M_))
         , space_(new hnswlib::L2Space(dim)) {
         
         // Initialize base layer and branches
-        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, ef_search / 2.0);
-        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_/2, ef_construction_/2, true, 1);
-        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_/2, ef_construction_/2, true, 1);
+        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, ef_search);
+        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_, ef_construction_, true, 1);
+        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_, ef_construction_, true, 1);
     }
 
     // Prepare data and compute LID values
