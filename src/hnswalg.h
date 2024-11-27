@@ -73,7 +73,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     tableint closestPoint_ = {0};
 
     // define exclude_set_
-    std::unordered_set<labeltype> exclude_set_ = {};
+    std::unordered_set<labeltype> exclude_set_;
 
     float avg_distance_{0.0f};
 
@@ -356,8 +356,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
-    // bare_bone_search means there is no check for deletions and stop condition is ignored in return of extra performance
-    template <bool bare_bone_search = false, bool collect_metrics = false>
+    template <bool bare_bone_search = true, bool collect_metrics = false>
     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst>
     searchBaseLayerST(
         tableint ep_id,
@@ -373,8 +372,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
 
         dist_t lowerBound;
-        if (bare_bone_search || 
-            (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id))))) {
+        // Check if ep_id is not in exclude_set_ before processing
+        if (exclude_set_.find(ep_id) == exclude_set_.end() &&
+            (bare_bone_search || 
+            (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id)))))) {
             char* ep_data = getDataByInternalId(ep_id);
             dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
             lowerBound = dist;
@@ -412,27 +413,32 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             tableint current_node_id = current_node_pair.second;
             int *data = (int *) get_linklist0(current_node_id);
             size_t size = getListCount((linklistsizeint*)data);
-//                bool cur_node_deleted = isMarkedDeleted(current_node_id);
+
             if (collect_metrics) {
                 metric_hops++;
                 metric_distance_computations+=size;
             }
 
-#ifdef USE_SSE
+    #ifdef USE_SSE
             _mm_prefetch((char *) (visited_array + *(data + 1)), _MM_HINT_T0);
             _mm_prefetch((char *) (visited_array + *(data + 1) + 64), _MM_HINT_T0);
             _mm_prefetch(data_level0_memory_ + (*(data + 1)) * size_data_per_element_ + offsetData_, _MM_HINT_T0);
             _mm_prefetch((char *) (data + 2), _MM_HINT_T0);
-#endif
+    #endif
 
             for (size_t j = 1; j <= size; j++) {
                 int candidate_id = *(data + j);
-//                    if (candidate_id == 0) continue;
-#ifdef USE_SSE
+
+    #ifdef USE_SSE
                 _mm_prefetch((char *) (visited_array + *(data + j + 1)), _MM_HINT_T0);
                 _mm_prefetch(data_level0_memory_ + (*(data + j + 1)) * size_data_per_element_ + offsetData_,
-                                _MM_HINT_T0);  ////////////
-#endif
+                                _MM_HINT_T0);
+    #endif
+                // Skip if candidate is in exclude_set_
+                if (exclude_set_.find(candidate_id) != exclude_set_.end()) {
+                    continue;
+                }
+
                 if (!(visited_array[candidate_id] == visited_array_tag)) {
                     visited_array[candidate_id] = visited_array_tag;
 
@@ -448,11 +454,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                     if (flag_consider_candidate) {
                         candidate_set.emplace(-dist, candidate_id);
-#ifdef USE_SSE
+    #ifdef USE_SSE
                         _mm_prefetch(data_level0_memory_ + candidate_set.top().second * size_data_per_element_ +
-                                        offsetLevel0_,  ///////////
-                                        _MM_HINT_T0);  ////////////////////////
-#endif
+                                        offsetLevel0_,
+                                        _MM_HINT_T0);
+    #endif
 
                         if (bare_bone_search || 
                             (!isMarkedDeleted(candidate_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(candidate_id))))) {
@@ -489,7 +495,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         visited_list_pool_->releaseVisitedList(vl);
         return top_candidates;
     }
-    
+
+
     void getNeighborsByHeuristic2(
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
         const size_t M) {
@@ -1234,7 +1241,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
-        int curlevel = level;
+        int curlevel = getRandomLevel(mult_, max_level_);
+        if (level >= 0)
+            curlevel = level;
 
         element_levels_[cur_c] = curlevel;
 
@@ -1325,47 +1334,47 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         tableint currObj = enterpoint_node_;
         dist_t curdist = fstdistfunc_(query_data, getDataByInternalId(enterpoint_node_), dist_func_param_);
 
-        for (int level = maxlevel_; level > 0; level--) {
-            bool changed = true;
-            bool exit_loops = false; // Flag to break out of both loops
+        // If same_m0, skip directly to base layer search
+        if (!same_m0) {
+            for (int level = maxlevel_; level > 0; level--) {
+                bool changed = true;
+                bool exit_loops = false;
 
-            while (changed) {
-                changed = false;
-                unsigned int *data;
+                while (changed) {
+                    changed = false;
+                    unsigned int *data;
 
-                data = (unsigned int *) get_linklist(currObj, level);
-                int size = getListCount(data);
-                metric_hops++;
-                metric_distance_computations += size;
+                    data = (unsigned int *) get_linklist(currObj, level);
+                    int size = getListCount(data);
+                    metric_hops++;
+                    metric_distance_computations += size;
 
-                tableint *datal = (tableint *) (data + 1);
-                for (int i = 0; i < size; i++) {
-                    tableint cand = datal[i];
-                    if (cand < 0 || cand > max_elements_)
-                        throw std::runtime_error("cand error");
+                    tableint *datal = (tableint *) (data + 1);
+                    for (int i = 0; i < size; i++) {
+                        tableint cand = datal[i];
+                        if (cand < 0 || cand > max_elements_)
+                            throw std::runtime_error("cand error");
 
-                    dist_t d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
+                        dist_t d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
 
-                    if (d < curdist) {
-                        curdist = d;
-                        currObj = cand;
-                        changed = true;
+                        if (d < curdist) {
+                            curdist = d;
+                            currObj = cand;
+                            changed = true;
 
-                        // Check the additional condition
-                        if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
-                            exit_loops = true;
-                            break;
+                            // Check the additional condition
+                            if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
+                                // If exit_loops is true, prepare single result and return
+                                result.push(std::pair<dist_t, labeltype>(d, getExternalLabel(cand)));
+                                return result;
+                            }
                         }
                     }
                 }
-
-                if (exit_loops) break; // Break the while loop
             }
-
-            if (exit_loops) break; // Break the outer for loop
         }
 
-
+        // Continue with base layer search if not exited early
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates;
         bool bare_bone_search = !num_deleted_ && !isIdAllowed;
         if (bare_bone_search) {
