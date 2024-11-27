@@ -67,21 +67,22 @@ public:
 
         int layer = assigned_layers_[label];
         int branch = assigned_branches_[label];
-        hnswlib::tableint closest_point = 0;
+        hnswlib::tableint closest_point;
 
         if (layer != 0) {
             if (branch == 0) {
                 branch0_->setLevel(layer);
                 branch0_->addPoint(point, label);
                 closest_point = branch0_->getClosestPoint();
+                base_layer_->setEnterpointNode(closest_point);
             } else {
                 branch1_->setLevel(layer);
                 branch1_->addPoint(point, label);
                 closest_point = branch1_->getClosestPoint();
+                base_layer_->setEnterpointNode(closest_point);
             }
         }
         
-        base_layer_->setEnterpointNode(closest_point);
         base_layer_->addPoint(point, label);
     }
 
