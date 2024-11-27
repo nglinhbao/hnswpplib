@@ -66,40 +66,42 @@ public:
 
         int layer = assigned_layers_[label];
         int branch = assigned_branches_[label];
-        hnswlib::tableint closest_point;
 
         if (layer != 0) {
             if (branch == 0) {
                 branch0_->setLevel(layer);
                 branch0_->addPoint(point, label);
-                closest_point = branch0_->getClosestPoint();
-                base_layer_->setEnterpointNode(closest_point);
+                auto closest = branch0_->getClosestPoint();
+                base_layer_->setEnterpointNode(closest);
             } else {
                 branch1_->setLevel(layer);
                 branch1_->addPoint(point, label);
-                closest_point = branch1_->getClosestPoint();
-                base_layer_->setEnterpointNode(closest_point);
+                auto closest = branch1_->getClosestPoint();
+                base_layer_->setEnterpointNode(closest);
             }
         }
         else {
-            // Get closest point from appropriate branch
-            std::priority_queue<std::pair<dist_t, labeltype>> search_result;
+            std::priority_queue<std::pair<float, hnswlib::labeltype>> branch_results;
+            std::vector<hnswlib::tableint> entry_points;
+            
             if (branch == 0) {
-                search_result = branch0_->searchKnn(point, 1, nullptr);
+                branch_results = branch0_->searchKnn(point, 1, nullptr);
             } else {
-                search_result = branch1_->searchKnn(point, 1, nullptr);
+                branch_results = branch1_->searchKnn(point, 1, nullptr);
             }
 
-            // If we found a result, use it as the enterpoint
-            if (!search_result.empty()) {
-                auto top_result = search_result.top();
-                // Convert external label to internal tableint
-                hnswlib::tableint closest_internal = branch == 0 ? 
-                    branch0_->getInternalLabel(top_result.second) :
-                    branch1_->getInternalLabel(top_result.second);
-                base_layer_->setEnterpointNode(closest_internal);
+            // Store entry points
+            while (!branch_results.empty()) {
+                entry_points.push_back(branch_results.top().second);
+                branch_results.pop();
+            }
+
+            // Set enterpoint if we found any
+            if (!entry_points.empty()) {
+                base_layer_->setEnterpointNode(entry_points[0]);
             }
         }
+        
         base_layer_->addPoint(point, label);
     }
 
