@@ -168,31 +168,33 @@ public:
         //     base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
         // }
 
-        std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
+        // std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
 
-        // Combine and sort results
-        std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
-        while (!final_results.empty()) {
-            sorted_results.push_back(final_results.top());
-            final_results.pop();
-        }
+        // // Combine and sort results
+        // std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
+        // while (!final_results.empty()) {
+        //     sorted_results.push_back(final_results.top());
+        //     final_results.pop();
+        // }
 
-        std::sort(sorted_results.begin(), sorted_results.end());
-        auto last = std::unique(sorted_results.begin(), sorted_results.end(),
-            [](const auto& a, const auto& b) { return a.second == b.second; });
-        sorted_results.erase(last, sorted_results.end());
+        // std::sort(sorted_results.begin(), sorted_results.end());
+        // auto last = std::unique(sorted_results.begin(), sorted_results.end(),
+        //     [](const auto& a, const auto& b) { return a.second == b.second; });
+        // sorted_results.erase(last, sorted_results.end());
 
-        std::cout << "Sort completed: " << sorted_results.size() << " results found." << std::endl;
+        // std::cout << "Sort completed: " << sorted_results.size() << " results found." << std::endl;
 
-        // Create final priority queue with top k results
-        std::priority_queue<std::pair<float, hnswlib::labeltype>> result;
-        for (int i = 0; i < std::min(k, (int)sorted_results.size()); i++) {
-            result.push(sorted_results[i]);
-        }
+        // // Create final priority queue with top k results
+        // std::priority_queue<std::pair<float, hnswlib::labeltype>> result;
+        // for (int i = 0; i < std::min(k, (int)sorted_results.size()); i++) {
+        //     result.push(sorted_results[i]);
+        // }
 
-        std::cout << "Search completed: " << result.size() << " results found." << std::endl;
+        // std::cout << "Search completed: " << result.size() << " results found." << std::endl;
 
-        return result;
+        // return result;
+
+        return final_results;
     }
 
     // Save index files
