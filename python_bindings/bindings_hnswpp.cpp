@@ -311,8 +311,9 @@ public:
                     );
 
                     if (result.size() != k)
-                        throw std::runtime_error(
-                            "Cannot return the results in a contiguous 2D array. Probably ef or M is too small");
+                        k = result.size();
+                        // throw std::runtime_error(
+                        //     "Cannot return the results in a contiguous 2D array. Probably ef or M is too small");
 
                     for (int i = k - 1; i >= 0; i--) {
                         auto& result_tuple = result.top();
@@ -334,8 +335,9 @@ public:
                     );
 
                     if (result.size() != k)
-                        throw std::runtime_error(
-                            "Cannot return the results in a contiguous 2D array. Probably ef or M is too small");
+                        k = result.size();
+                        // throw std::runtime_error(
+                        //     "Cannot return the results in a contiguous 2D array. Probably ef or M is too small");
 
                     for (int i = k - 1; i >= 0; i--) {
                         auto& result_tuple = result.top();

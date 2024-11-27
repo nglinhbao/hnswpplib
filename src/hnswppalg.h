@@ -1,6 +1,5 @@
 #pragma once
-#include <thread>
-#include <future>
+
 #include "hnswlib.h"
 #include <vector>
 #include <memory>
@@ -23,15 +22,14 @@ public:
         , max_elements_(max_elements)
         , M_(M)
         , ef_construction_(ef_construction)
-        , max_level_(std::floor((1 / std::log(M)) * std::log(max_elements/2)))
-        // , max_level_(max_level)
+        , max_level_(std::floor((1 / std::log(M/2)) * std::log(max_elements/2)))
         , scale_factor_(1 / log(1.0 * M_))
         , space_(new hnswlib::L2Space(dim)) {
         
         // Initialize base layer and branches
-        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, ef_search / 2.0);
-        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_, ef_construction_, true, 1);
-        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_/2, M_, ef_construction_, true, 1);
+        base_layer_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, false, std::max(1, static_cast<int>(std::round(ef_search / 2.0))));
+        branch0_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true, 1);
+        branch1_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(space_.get(), max_elements_, M_, ef_construction_, true, 1);
     }
 
     // Prepare data and compute LID values
@@ -71,26 +69,15 @@ public:
         hnswlib::tableint closest_point = 0;
 
         if (layer != 0) {
-            std::thread branch_thread;
-
             if (branch == 0) {
-                branch_thread = std::thread([&]() {
-                    branch0_->setLevel(layer);
-                    branch0_->addPoint(point, label);
-                });
-                // Use branch0_->getClosestPoint() after the thread finishes.
+                branch0_->setLevel(layer);
+                branch0_->addPoint(point, label);
+                closest_point = branch0_->getClosestPoint();
             } else {
-                branch_thread = std::thread([&]() {
-                    branch1_->setLevel(layer);
-                    branch1_->addPoint(point, label);
-                });
-                // Use branch1_->getClosestPoint() after the thread finishes.
+                branch1_->setLevel(layer);
+                branch1_->addPoint(point, label);
+                closest_point = branch1_->getClosestPoint();
             }
-
-            branch_thread.join(); // Ensure the thread finishes execution before proceeding.
-
-            // Retrieve the closest point after the thread completes its task.
-            closest_point = (branch == 0) ? branch0_->getClosestPoint() : branch1_->getClosestPoint();
         }
         
         base_layer_->setEnterpointNode(closest_point);
@@ -107,18 +94,17 @@ public:
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch0_results;
         std::priority_queue<std::pair<float, hnswlib::labeltype>> branch1_results;
 
-        // Create threads to perform the searches in parallel
-        std::thread branch0_thread([&]() {
-            branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
-        });
-
-        std::thread branch1_thread([&]() {
-            branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
-        });
-
-        // Wait for both threads to finish
-        branch0_thread.join();
-        branch1_thread.join();
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            {
+                branch0_results = branch0_->searchKnn(query_data, 1, nullptr);
+            }
+            #pragma omp section
+            {
+                branch1_results = branch1_->searchKnn(query_data, 1, nullptr);
+            }
+        }
         
         // Store branch0 entry points
         std::vector<hnswlib::tableint> branch0_entry_points;
@@ -127,7 +113,7 @@ public:
             branch0_results.pop();
         }
 
-        // // Store branch1 entry points
+        // Store branch1 entry points
         std::vector<hnswlib::tableint> branch1_entry_points;
         while (!branch1_results.empty()) {
             branch1_entry_points.push_back(branch1_results.top().second);
@@ -143,6 +129,7 @@ public:
         if (!branch0_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch0_entry_points[0]);
             auto results_from_branch0 = base_layer_->searchKnn(query_data, k);
+            
             // Store results and collect labels for exclude set
             while (!results_from_branch0.empty()) {
                 auto result = results_from_branch0.top();
@@ -152,12 +139,11 @@ public:
             }
         }
 
-        std::cout << "Raw 1 completed: " << final_results.size() << " results found." << std::endl;
-
         // Using branch1 entry point with updated exclude set
         if (!branch1_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
             base_layer_->setExcludeSet(intermediate_exclude_set);  // Set exclude set for second search
+            
             auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
             while (!results_from_branch1.empty()) {
                 final_results.push(results_from_branch1.top());
@@ -167,8 +153,6 @@ public:
             // Clear exclude set after search
             base_layer_->setExcludeSet(std::unordered_set<hnswlib::labeltype>());
         }
-
-        std::cout << "Raw 2 completed: " << final_results.size() << " results found." << std::endl;
 
         // Combine and sort results
         std::vector<std::pair<float, hnswlib::labeltype>> sorted_results;
@@ -182,19 +166,13 @@ public:
             [](const auto& a, const auto& b) { return a.second == b.second; });
         sorted_results.erase(last, sorted_results.end());
 
-        std::cout << "Sort completed: " << sorted_results.size() << " results found." << std::endl;
-
         // Create final priority queue with top k results
         std::priority_queue<std::pair<float, hnswlib::labeltype>> result;
         for (int i = 0; i < std::min(k, (int)sorted_results.size()); i++) {
             result.push(sorted_results[i]);
         }
 
-        std::cout << "Search completed: " << result.size() << " results found." << std::endl;
-
         return result;
-
-        // return final_results;
     }
 
     // Save index files
@@ -392,3 +370,5 @@ private:
     std::vector<int> assigned_branches_;
     float avg_distance_;
 };
+
+
