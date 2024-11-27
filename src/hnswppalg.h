@@ -87,10 +87,12 @@ public:
             if (branch == 0) {
                 branch_results = branch0_->searchKnn(point, 1, nullptr);
                 auto closest = branch1_->getClosestPoint();
+                std::cout << "Closest point from branch 0: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             } else {
                 branch_results = branch1_->searchKnn(point, 1, nullptr);
                 auto closest = branch1_->getClosestPoint();
+                std::cout << "Closest point from branch 1: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             }
         }
