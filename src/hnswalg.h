@@ -43,6 +43,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     std::vector<std::mutex> link_list_locks_;
 
     tableint enterpoint_node_{0};
+    tableint enterpoint_node_1_{0};
 
     size_t size_links_level0_{0};
     size_t offsetData_{0}, offsetLevel0_{0}, label_offset_{ 0 };
