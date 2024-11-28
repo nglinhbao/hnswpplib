@@ -70,10 +70,10 @@ public:
         const int branch = assigned_branches_[label];
         
         // Helper function to handle branch operations
-        auto processBranch = [this, point, label, layer](hnswlib::HierarchicalNSW<float>* branch) {
+        auto processBranch = [this, point, label, layer](HNSWLib* branch) {
             auto branch_start = std::chrono::high_resolution_clock::now();
             
-            branch->setLevel(std::max(0, layer - 1));
+            branch->setLevel(layer);
             branch->setConnectState(layer != 0);  // true for upper layers, false for base layer
             branch->addPoint(point, label);
             auto closest = branch->getClosestPoint();
