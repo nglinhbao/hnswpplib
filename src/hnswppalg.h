@@ -67,18 +67,18 @@ public:
         int layer = assigned_layers_[label];
         int branch = assigned_branches_[label];
 
-        std::cout << "Adding point " << point << " to layer " << layer << " and branch " << branch << std::endl;
-
         if (layer != 0) {
             if (branch == 0) {
                 branch0_->setLevel(layer);
                 branch0_->addPoint(point, label);
                 auto closest = branch0_->getClosestPoint();
+                std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             } else {
                 branch1_->setLevel(layer);
                 branch1_->addPoint(point, label);
                 auto closest = branch1_->getClosestPoint();
+                std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             }
         }
