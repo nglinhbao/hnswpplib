@@ -1215,7 +1215,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
 
-    tableint addPointInternal(const void *data_point, labeltype label, int level) {
+    tableint addPointInternal(const void *data_point, labeltype label, int assigned_level) {
         tableint cur_c = 0;
         {
             // Checking if the element with the same label already exists
@@ -1250,8 +1250,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
         int curlevel = getRandomLevel(mult_, max_level_);
-        if (level >= 0)
-            curlevel = level;
+        if (assigned_level >= 0)
+            curlevel = assigned_level;
 
         element_levels_[cur_c] = curlevel;
 
@@ -1261,6 +1261,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             templock.unlock();
         tableint currObj = enterpoint_node_;
         tableint enterpoint_copy = enterpoint_node_;
+
+        std::cout << "Entry point: " << enterpoint_node_ << std::endl;
 
         memset(data_level0_memory_ + cur_c * size_data_per_element_ + offsetLevel0_, 0, size_data_per_element_);
 
