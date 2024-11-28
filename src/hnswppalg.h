@@ -70,39 +70,37 @@ public:
         if (layer != 0) {
             if (branch == 0) {
                 branch0_->setLevel(layer);
+                branch0_->setConnectState(true);
                 branch0_->addPoint(point, label);
                 auto closest = branch0_->getClosestPoint();
                 std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             } else {
                 branch1_->setLevel(layer);
+                branch1_->setConnectState(true);
                 branch1_->addPoint(point, label);
                 auto closest = branch1_->getClosestPoint();
                 std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             }
         }
-        // else {
-        //     std::priority_queue<std::pair<float, hnswlib::labeltype>> branch_results;
-        //     std::vector<hnswlib::tableint> entry_points;
-                
-        //     if (branch == 0) {
-        //         branch_results = branch0_->searchKnn(point, 1, nullptr);
-        //     } else {
-        //         branch_results = branch1_->searchKnn(point, 1, nullptr);
-        //     }
-
-        //     // Store entry points
-        //     while (!branch_results.empty()) {
-        //         entry_points.push_back(branch_results.top().second);
-        //         branch_results.pop();
-        //     }
-
-        //     // Set enterpoint if we found any
-        //     if (!entry_points.empty()) {
-        //         base_layer_->setEnterpointNode(entry_points[0]);
-        //     }
-        // }
+        else {
+            if (branch == 0) {
+                branch0_->setLevel(layer);
+                branch0_->setConnectState(false);
+                branch0_->addPoint(point, label);
+                auto closest = branch0_->getClosestPoint();
+                std::cout << "Closest point: " << closest << std::endl;
+                base_layer_->setEnterpointNode(closest);
+            } else {
+                branch1_->setLevel(layer);
+                branch1_->setConnectState(false);
+                branch1_->addPoint(point, label);
+                auto closest = branch1_->getClosestPoint();
+                std::cout << "Closest point: " << closest << std::endl;
+                base_layer_->setEnterpointNode(closest);
+            }
+        }
             
         base_layer_->addPoint(point, label);
     }
