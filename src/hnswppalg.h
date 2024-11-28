@@ -87,10 +87,8 @@ public:
         // Process the appropriate branch
         auto branch_section_start = std::chrono::high_resolution_clock::now();
         if (branch == 0) {
-            std::cout << "Processing Branch 0\n";
             processBranch(branch0_);
         } else {
-            std::cout << "Processing Branch 1\n";
             processBranch(branch1_);
         }
         auto branch_section_end = std::chrono::high_resolution_clock::now();

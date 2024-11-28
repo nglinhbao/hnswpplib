@@ -1218,16 +1218,13 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     tableint addPointInternal(const void *data_point, labeltype label, int assigned_level) {
         tableint cur_c = 0;
         {
-            // Checking if the element with the same label already exists
-            // if so, updating it *instead* of creating a new element.
+            // Check for existing element
             std::unique_lock <std::mutex> lock_table(label_lookup_lock);
             auto search = label_lookup_.find(label);
             if (search != label_lookup_.end()) {
                 tableint existingInternalId = search->second;
-                if (allow_replace_deleted_) {
-                    if (isMarkedDeleted(existingInternalId)) {
-                        throw std::runtime_error("Can't use addPoint to update deleted elements if replacement of deleted elements is enabled.");
-                    }
+                if (allow_replace_deleted_ && isMarkedDeleted(existingInternalId)) {
+                    throw std::runtime_error("Can't use addPoint to update deleted elements if replacement of deleted elements is enabled.");
                 }
                 lock_table.unlock();
 
@@ -1235,7 +1232,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                     unmarkDeletedInternal(existingInternalId);
                 }
                 updatePoint(data_point, existingInternalId, 1.0);
-
                 return existingInternalId;
             }
 
@@ -1249,10 +1245,45 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
-        int curlevel = getRandomLevel(mult_, max_level_);
-        if (assigned_level >= 0)
-            curlevel = assigned_level;
+        
+        // Initialize data at level 0
+        memset(data_level0_memory_ + cur_c * size_data_per_element_ + offsetLevel0_, 0, size_data_per_element_);
+        memcpy(getExternalLabeLp(cur_c), &label, sizeof(labeltype));
+        memcpy(getDataByInternalId(cur_c), data_point, data_size_);
 
+        if (assigned_level == 0) {
+            // Fast path for level 0
+            element_levels_[cur_c] = 0;
+            
+            if ((signed)enterpoint_node_ != -1) {
+                // Search base layer only
+                std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = 
+                    searchBaseLayer(enterpoint_node_, data_point, 0);
+                    
+                if (isMarkedDeleted(enterpoint_node_)) {
+                    top_candidates.emplace(fstdistfunc_(data_point, getDataByInternalId(enterpoint_node_), dist_func_param_), enterpoint_node_);
+                    if (top_candidates.size() > ef_construction_)
+                        top_candidates.pop();
+                }
+                
+                if (connect_state_) {
+                    closestPoint_ = mutuallyConnectNewElement(data_point, cur_c, top_candidates, 0, false);
+                }
+            } else {
+                // First element case
+                enterpoint_node_ = 0;
+                maxlevel_ = 0;
+                closestPoint_ = 0;
+            }
+            
+            return cur_c;
+        }
+
+        // Original logic for higher levels
+        int curlevel = getRandomLevel(mult_, max_level_);
+        if (assigned_level > 0) {
+            curlevel = assigned_level;
+        }
         element_levels_[cur_c] = curlevel;
 
         std::unique_lock <std::mutex> templock(global);
@@ -1261,12 +1292,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             templock.unlock();
         tableint currObj = enterpoint_node_;
         tableint enterpoint_copy = enterpoint_node_;
-
-        memset(data_level0_memory_ + cur_c * size_data_per_element_ + offsetLevel0_, 0, size_data_per_element_);
-
-        // Initialisation of the data and label
-        memcpy(getExternalLabeLp(cur_c), &label, sizeof(labeltype));
-        memcpy(getDataByInternalId(cur_c), data_point, data_size_);
 
         if (curlevel) {
             linkLists_[cur_c] = (char *) malloc(size_links_per_element_ * curlevel + 1);
@@ -1305,11 +1330,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
             bool epDeleted = isMarkedDeleted(enterpoint_copy);
             for (int level = std::min(curlevel, maxlevelcopy); level >= 0; level--) {
-                if (level > maxlevelcopy || level < 0)  // possible?
+                if (level > maxlevelcopy || level < 0)
                     throw std::runtime_error("Level error");
 
-                std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = searchBaseLayer(
-                        currObj, data_point, level);
+                auto top_candidates = searchBaseLayer(currObj, data_point, level);
                 if (epDeleted) {
                     top_candidates.emplace(fstdistfunc_(data_point, getDataByInternalId(enterpoint_copy), dist_func_param_), enterpoint_copy);
                     if (top_candidates.size() > ef_construction_)
@@ -1320,12 +1344,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 }
             }
         } else {
-            // Do nothing for the first element
             enterpoint_node_ = 0;
             maxlevel_ = curlevel;
         }
 
-        // Releasing lock for the maximum level
         if (curlevel > maxlevelcopy) {
             enterpoint_node_ = cur_c;
             maxlevel_ = curlevel;
