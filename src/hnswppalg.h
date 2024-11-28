@@ -77,6 +77,7 @@ public:
             branch->setConnectState(layer != 0);  // true for upper layers, false for base layer
             branch->addPoint(point, label);
             auto closest = branch->getClosestPoint();
+            std::cout << "Closest point: " << closest << std::endl;
             base_layer_->setEnterpointNode(closest);
             
             auto branch_end = std::chrono::high_resolution_clock::now();
