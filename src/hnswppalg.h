@@ -9,6 +9,7 @@
 #include <future>
 #include <omp.h>
 #include <chrono>
+#include <algorithm>
 
 class HNSWPP {
 public:
@@ -72,8 +73,7 @@ public:
         // Helper function to handle branch operations
         auto processBranch = [this, point, label, layer](std::unique_ptr<hnswlib::HierarchicalNSW<float>>& branch) {
             auto branch_start = std::chrono::high_resolution_clock::now();
-            
-            branch->setLevel(layer);
+            branch->setLevel(std::max(0, layer - 1));
             branch->setConnectState(layer != 0);  // true for upper layers, false for base layer
             branch->addPoint(point, label);
             auto closest = branch->getClosestPoint();

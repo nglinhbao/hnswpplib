@@ -1340,6 +1340,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
         closestPoint_ = currObj;
+        if 
         std::cout << "Closest point: " << closestPoint_ << std::endl;
         return cur_c;
     }
