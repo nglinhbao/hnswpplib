@@ -82,32 +82,33 @@ public:
                 base_layer_->setEnterpointNode(closest);
             }
         }
-        else {
-            std::priority_queue<std::pair<float, hnswlib::labeltype>> branch_results;
-            std::vector<hnswlib::tableint> entry_points;
+        // else {
+        //     std::priority_queue<std::pair<float, hnswlib::labeltype>> branch_results;
+        //     std::vector<hnswlib::tableint> entry_points;
                 
-            if (branch == 0) {
-                branch_results = branch0_->searchKnn(point, 1, nullptr);
-            } else {
-                branch_results = branch1_->searchKnn(point, 1, nullptr);
-            }
+        //     if (branch == 0) {
+        //         branch_results = branch0_->searchKnn(point, 1, nullptr);
+        //     } else {
+        //         branch_results = branch1_->searchKnn(point, 1, nullptr);
+        //     }
 
-            // Store entry points
-            while (!branch_results.empty()) {
-                entry_points.push_back(branch_results.top().second);
-                branch_results.pop();
-            }
+        //     // Store entry points
+        //     while (!branch_results.empty()) {
+        //         entry_points.push_back(branch_results.top().second);
+        //         branch_results.pop();
+        //     }
 
-            // Set enterpoint if we found any
-            if (!entry_points.empty()) {
-                base_layer_->setEnterpointNode(entry_points[0]);
-            }
-        }
+        //     // Set enterpoint if we found any
+        //     if (!entry_points.empty()) {
+        //         base_layer_->setEnterpointNode(entry_points[0]);
+        //     }
+        // }
             
         base_layer_->addPoint(point, label);
     }
 
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
+        std::cout << "Query data: " << query_data << std::endl;
         // auto start_total = std::chrono::high_resolution_clock::now();
 
         // Set LID threshold for branches
