@@ -183,10 +183,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         return closestPoint_;
     }
 
-    void setClosestPoint(tableint closest_point) {
-        closestPoint_ = closest_point;
-    }
-
     // Function to set a new enterpoint node
     void setEnterpointNode(tableint new_enterpoint) {
         std::unique_lock<std::mutex> lock(global); // Ensure thread safety
@@ -243,6 +239,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         memcpy(&return_label, (data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_), sizeof(labeltype));
         return return_label;
     }
+
 
     inline void setExternalLabel(tableint internal_id, labeltype label) const {
         memcpy((data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_), &label, sizeof(labeltype));
@@ -1216,8 +1213,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         tableint cur_c = 0;
         {
             // Checking if the element with the same label already exists
-            // If so, updating it *instead* of creating a new element.
-            std::unique_lock<std::mutex> lock_table(label_lookup_lock);
+            // if so, updating it *instead* of creating a new element.
+            std::unique_lock <std::mutex> lock_table(label_lookup_lock);
             auto search = label_lookup_.find(label);
             if (search != label_lookup_.end()) {
                 tableint existingInternalId = search->second;
@@ -1245,14 +1242,14 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             label_lookup_[label] = cur_c;
         }
 
-        std::unique_lock<std::mutex> lock_el(link_list_locks_[cur_c]);
+        std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
         int curlevel = getRandomLevel(mult_, max_level_);
         if (level >= 0)
             curlevel = level;
 
         element_levels_[cur_c] = curlevel;
 
-        std::unique_lock<std::mutex> templock(global);
+        std::unique_lock <std::mutex> templock(global);
         int maxlevelcopy = maxlevel_;
         if (curlevel <= maxlevelcopy)
             templock.unlock();
@@ -1261,12 +1258,12 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         memset(data_level0_memory_ + cur_c * size_data_per_element_ + offsetLevel0_, 0, size_data_per_element_);
 
-        // Initialization of the data and label
+        // Initialisation of the data and label
         memcpy(getExternalLabeLp(cur_c), &label, sizeof(labeltype));
         memcpy(getDataByInternalId(cur_c), data_point, data_size_);
 
         if (curlevel) {
-            linkLists_[cur_c] = (char *)malloc(size_links_per_element_ * curlevel + 1);
+            linkLists_[cur_c] = (char *) malloc(size_links_per_element_ * curlevel + 1);
             if (linkLists_[cur_c] == nullptr)
                 throw std::runtime_error("Not enough memory: addPoint failed to allocate linklist");
             memset(linkLists_[cur_c], 0, size_links_per_element_ * curlevel + 1);
@@ -1280,11 +1277,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                     while (changed) {
                         changed = false;
                         unsigned int *data;
-                        std::unique_lock<std::mutex> lock(link_list_locks_[currObj]);
+                        std::unique_lock <std::mutex> lock(link_list_locks_[currObj]);
                         data = get_linklist(currObj, level);
                         int size = getListCount(data);
 
-                        tableint *datal = (tableint *)(data + 1);
+                        tableint *datal = (tableint *) (data + 1);
                         for (int i = 0; i < size; i++) {
                             tableint cand = datal[i];
                             if (cand < 0 || cand > max_elements_)
@@ -1306,20 +1303,12 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                     throw std::runtime_error("Level error");
 
                 std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = searchBaseLayer(
-                    currObj, data_point, level);
-
-                // Add entry point to candidates if it's deleted
+                        currObj, data_point, level);
                 if (epDeleted) {
                     top_candidates.emplace(fstdistfunc_(data_point, getDataByInternalId(enterpoint_copy), dist_func_param_), enterpoint_copy);
                     if (top_candidates.size() > ef_construction_)
                         top_candidates.pop();
                 }
-
-                // Update `closestPoint_` to the top of the priority queue (closest point in this layer)
-                if (!top_candidates.empty()) {
-                    setClosestPoint(top_candidates.top().second);
-                }
-
                 currObj = mutuallyConnectNewElement(data_point, cur_c, top_candidates, level, false);
             }
         } else {
@@ -1334,6 +1323,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             maxlevel_ = curlevel;
         }
 
+        closestPoint_ = currObj;
         return cur_c;
     }
 
@@ -1351,6 +1341,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         if (!same_m0_) {
             for (int level = maxlevel_; level > 0; level--) {
                 bool changed = true;
+                bool exit_loops = false;
 
                 while (changed) {
                     changed = false;
@@ -1376,8 +1367,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                             // Check the additional condition
                             if (d < avg_distance_ && normalized_lid_[cand] > lid_threshold_) {
+                                // If exit_loops is true, prepare single result and return
                                 result.push(std::pair<dist_t, labeltype>(d, getExternalLabel(cand)));
-                                const_cast<HierarchicalNSW*>(this)->setClosestPoint(cand);
                                 return result;
                             }
                         }
@@ -1400,20 +1391,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         while (top_candidates.size() > k) {
             top_candidates.pop();
         }
-
-        // Find closest point before creating final result
-        if (!top_candidates.empty()) {
-            std::pair<dist_t, tableint> closest = top_candidates.top();
-            auto temp = top_candidates;
-            while (!temp.empty()) {
-                if (temp.top().first < closest.first) {
-                    closest = temp.top();
-                }
-                temp.pop();
-            }
-            const_cast<HierarchicalNSW*>(this)->setClosestPoint(closest.second);
-        }
-
         while (top_candidates.size() > 0) {
             std::pair<dist_t, tableint> rez = top_candidates.top();
             result.push(std::pair<dist_t, labeltype>(rez.first, getExternalLabel(rez.second)));

@@ -81,22 +81,29 @@ public:
             }
         }
         else {
-            std::priority_queue<std::pair<float, hnswlib::labeltype>> branch_results;
+            std::priority_queue<std::pair<float, hnswlib::tableint>, 
+                std::vector<std::pair<float, hnswlib::tableint>>, 
+                hnswlib::HierarchicalNSW<float>::CompareByFirst> branch_results;
             std::vector<hnswlib::tableint> entry_points;
-            
+                
             if (branch == 0) {
-                branch_results = branch0_->searchKnn(point, 1, nullptr);
-                auto closest = branch1_->getClosestPoint();
-                std::cout << "Closest point from branch 0: " << closest << std::endl;
-                base_layer_->setEnterpointNode(closest);
+                branch_results = branch0_->searchKnnInternal(point, label);
             } else {
-                branch_results = branch1_->searchKnn(point, 1, nullptr);
-                auto closest = branch1_->getClosestPoint();
-                std::cout << "Closest point from branch 1: " << closest << std::endl;
-                base_layer_->setEnterpointNode(closest);
+                branch_results = branch1_->searchKnnInternal(point, label);
+            }
+
+            // Store entry points
+            while (!branch_results.empty()) {
+                entry_points.push_back(branch_results.top().second);
+                branch_results.pop();
+            }
+
+            // Set enterpoint if we found any
+            if (!entry_points.empty()) {
+                base_layer_->setEnterpointNode(entry_points[0]);
             }
         }
-        
+            
         base_layer_->addPoint(point, label);
     }
 
@@ -441,5 +448,3 @@ private:
     std::vector<int> assigned_branches_;
     float avg_distance_;
 };
-
-
