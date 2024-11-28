@@ -8,7 +8,7 @@
 #include <numeric>
 #include <future>
 #include <omp.h>
-// #include <chrono>
+#include <chrono>
 
 class HNSWPP {
 public:
@@ -60,45 +60,57 @@ public:
     }
 
     void addPoint(const float* point, hnswlib::labeltype label) {
+        auto total_start = std::chrono::high_resolution_clock::now();
+        
         if (normalized_lid_.empty()) {
             throw std::runtime_error("LID values not computed. Call prepareIndex first.");
         }
 
-        int layer = assigned_layers_[label];
-        int branch = assigned_branches_[label];
-
-        if (layer != 0) {
-            if (branch == 0) {
-                branch0_->setLevel(layer);
-                branch0_->setConnectState(true);
-                branch0_->addPoint(point, label);
-                auto closest = branch0_->getClosestPoint();
-                base_layer_->setEnterpointNode(closest);
-            } else {
-                branch1_->setLevel(layer);
-                branch1_->setConnectState(true);
-                branch1_->addPoint(point, label);
-                auto closest = branch1_->getClosestPoint();
-                base_layer_->setEnterpointNode(closest);
-            }
-        }
-        else {
-            if (branch == 0) {
-                branch0_->setLevel(layer);
-                branch0_->setConnectState(false);
-                branch0_->addPoint(point, label);
-                auto closest = branch0_->getClosestPoint();
-                base_layer_->setEnterpointNode(closest);
-            } else {
-                branch1_->setLevel(layer);
-                branch1_->setConnectState(false);
-                branch1_->addPoint(point, label);
-                auto closest = branch1_->getClosestPoint();
-                base_layer_->setEnterpointNode(closest);
-            }
-        }
+        const int layer = assigned_layers_[label];
+        const int branch = assigned_branches_[label];
+        
+        // Helper function to handle branch operations
+        auto processBranch = [this, point, label, layer](HNSWLib* branch) {
+            auto branch_start = std::chrono::high_resolution_clock::now();
             
+            branch->setLevel(layer);
+            branch->setConnectState(layer != 0);  // true for upper layers, false for base layer
+            branch->addPoint(point, label);
+            auto closest = branch->getClosestPoint();
+            base_layer_->setEnterpointNode(closest);
+            
+            auto branch_end = std::chrono::high_resolution_clock::now();
+            auto branch_duration = std::chrono::duration_cast<std::chrono::microseconds>(branch_end - branch_start);
+            std::cout << "Branch processing time: " << branch_duration.count() << " microseconds\n";
+        };
+
+        // Process the appropriate branch
+        auto branch_section_start = std::chrono::high_resolution_clock::now();
+        if (branch == 0) {
+            std::cout << "Processing Branch 0\n";
+            processBranch(branch0_);
+        } else {
+            std::cout << "Processing Branch 1\n";
+            processBranch(branch1_);
+        }
+        auto branch_section_end = std::chrono::high_resolution_clock::now();
+        auto branch_section_duration = std::chrono::duration_cast<std::chrono::microseconds>(branch_section_end - branch_section_start);
+        
+        // Time base layer addition
+        auto base_start = std::chrono::high_resolution_clock::now();
         base_layer_->addPoint(point, label);
+        auto base_end = std::chrono::high_resolution_clock::now();
+        auto base_duration = std::chrono::duration_cast<std::chrono::microseconds>(base_end - base_start);
+        
+        auto total_end = std::chrono::high_resolution_clock::now();
+        auto total_duration = std::chrono::duration_cast<std::chrono::microseconds>(total_end - total_start);
+
+        // Print timing summary
+        std::cout << "===== Timing Summary =====\n"
+                << "Total branch section time: " << branch_section_duration.count() << " microseconds\n"
+                << "Base layer addition time: " << base_duration.count() << " microseconds\n"
+                << "Total execution time: " << total_duration.count() << " microseconds\n"
+                << "========================\n";
     }
 
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
@@ -147,7 +159,7 @@ public:
         // Using branch1 entry point with updated exclude set
         if (!branch1_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
-            // base_layer_->setExcludeSet(intermediate_exclude_set);
+            base_layer_->setExcludeSet(intermediate_exclude_set);
             
             auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
 
