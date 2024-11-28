@@ -67,6 +67,8 @@ public:
         int layer = assigned_layers_[label];
         int branch = assigned_branches_[label];
 
+        std::cout << "Adding point " << point << " to layer " << layer << " and branch " << branch << std::endl;
+
         if (layer != 0) {
             if (branch == 0) {
                 branch0_->setLevel(layer);
