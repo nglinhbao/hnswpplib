@@ -189,6 +189,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     void setEnterpointNode(tableint new_enterpoint) {
         std::unique_lock<std::mutex> lock(global); // Ensure thread safety
         enterpoint_node_ = new_enterpoint;
+        std::cout << "Set enterpoint node: " << enterpoint_node_ << std::endl;
     }
 
     void setExcludeSet(const std::unordered_set<labeltype> &exclude_set) {
@@ -1337,8 +1338,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             enterpoint_node_ = cur_c;
             maxlevel_ = curlevel;
         }
-
-        closestPoint_ = currObj;
+        
+        if (same_m0_) {
+            closestPoint_ = currObj;
+            std::cout << "Internal Closest point: " << closestPoint_ << std::endl;
+        }
         return cur_c;
     }
 
