@@ -73,14 +73,12 @@ public:
                 branch0_->setConnectState(true);
                 branch0_->addPoint(point, label);
                 auto closest = branch0_->getClosestPoint();
-                std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             } else {
                 branch1_->setLevel(layer);
                 branch1_->setConnectState(true);
                 branch1_->addPoint(point, label);
                 auto closest = branch1_->getClosestPoint();
-                std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             }
         }
@@ -90,14 +88,12 @@ public:
                 branch0_->setConnectState(false);
                 branch0_->addPoint(point, label);
                 auto closest = branch0_->getClosestPoint();
-                std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             } else {
                 branch1_->setLevel(layer);
                 branch1_->setConnectState(false);
                 branch1_->addPoint(point, label);
                 auto closest = branch1_->getClosestPoint();
-                std::cout << "Closest point: " << closest << std::endl;
                 base_layer_->setEnterpointNode(closest);
             }
         }
@@ -151,7 +147,7 @@ public:
         // Using branch1 entry point with updated exclude set
         if (!branch1_entry_points.empty()) {
             base_layer_->setEnterpointNode(branch1_entry_points[0]);
-            base_layer_->setExcludeSet(intermediate_exclude_set);
+            // base_layer_->setExcludeSet(intermediate_exclude_set);
             
             auto results_from_branch1 = base_layer_->searchKnn(query_data, k);
 
