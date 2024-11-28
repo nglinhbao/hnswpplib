@@ -23,7 +23,7 @@ public:
         , max_elements_(max_elements)
         , M_(M)
         , ef_construction_(ef_construction)
-        , max_level_(std::floor((1 / std::log(M/2)) * std::log(max_elements/2)))
+        , max_level_(std::floor((1 / std::log(M)) * std::log(max_elements/2)))
         , scale_factor_(1 / log(1.0 * M_))
         , space_(new hnswlib::L2Space(dim)) {
         
@@ -60,7 +60,7 @@ public:
     }
 
     void addPoint(const float* point, hnswlib::labeltype label) {
-        // auto total_start = std::chrono::high_resolution_clock::now();
+        auto total_start = std::chrono::high_resolution_clock::now();
         
         if (normalized_lid_.empty()) {
             throw std::runtime_error("LID values not computed. Call prepareIndex first.");
@@ -71,7 +71,7 @@ public:
         
         // Helper function to handle branch operations
         auto processBranch = [this, point, label, layer](std::unique_ptr<hnswlib::HierarchicalNSW<float>>& branch) {
-            // auto branch_start = std::chrono::high_resolution_clock::now();
+            auto branch_start = std::chrono::high_resolution_clock::now();
             
             branch->setLevel(layer);
             branch->setConnectState(layer != 0);  // true for upper layers, false for base layer
@@ -79,36 +79,36 @@ public:
             auto closest = branch->getClosestPoint();
             base_layer_->setEnterpointNode(closest);
             
-            // auto branch_end = std::chrono::high_resolution_clock::now();
-            // auto branch_duration = std::chrono::duration_cast<std::chrono::microseconds>(branch_end - branch_start);
-            // std::cout << "Branch processing time: " << branch_duration.count() << " microseconds\n";
+            auto branch_end = std::chrono::high_resolution_clock::now();
+            auto branch_duration = std::chrono::duration_cast<std::chrono::microseconds>(branch_end - branch_start);
+            std::cout << "Branch processing time: " << branch_duration.count() << " microseconds\n";
         };
 
         // Process the appropriate branch
-        // auto branch_section_start = std::chrono::high_resolution_clock::now();
+        auto branch_section_start = std::chrono::high_resolution_clock::now();
         if (branch == 0) {
             processBranch(branch0_);
         } else {
             processBranch(branch1_);
         }
-        // auto branch_section_end = std::chrono::high_resolution_clock::now();
-        // auto branch_section_duration = std::chrono::duration_cast<std::chrono::microseconds>(branch_section_end - branch_section_start);
+        auto branch_section_end = std::chrono::high_resolution_clock::now();
+        auto branch_section_duration = std::chrono::duration_cast<std::chrono::microseconds>(branch_section_end - branch_section_start);
         
-        // // Time base layer addition
-        // auto base_start = std::chrono::high_resolution_clock::now();
+        // Time base layer addition
+        auto base_start = std::chrono::high_resolution_clock::now();
         base_layer_->addPoint(point, label);
-        // auto base_end = std::chrono::high_resolution_clock::now();
-        // auto base_duration = std::chrono::duration_cast<std::chrono::microseconds>(base_end - base_start);
+        auto base_end = std::chrono::high_resolution_clock::now();
+        auto base_duration = std::chrono::duration_cast<std::chrono::microseconds>(base_end - base_start);
         
-        // auto total_end = std::chrono::high_resolution_clock::now();
-        // auto total_duration = std::chrono::duration_cast<std::chrono::microseconds>(total_end - total_start);
+        auto total_end = std::chrono::high_resolution_clock::now();
+        auto total_duration = std::chrono::duration_cast<std::chrono::microseconds>(total_end - total_start);
 
-        // // Print timing summary
-        // std::cout << "===== Timing Summary =====\n"
-        //         << "Total branch section time: " << branch_section_duration.count() << " microseconds\n"
-        //         << "Base layer addition time: " << base_duration.count() << " microseconds\n"
-        //         << "Total execution time: " << total_duration.count() << " microseconds\n"
-        //         << "========================\n";
+        // Print timing summary
+        std::cout << "===== Timing Summary =====\n"
+                << "Total branch section time: " << branch_section_duration.count() << " microseconds\n"
+                << "Base layer addition time: " << base_duration.count() << " microseconds\n"
+                << "Total execution time: " << total_duration.count() << " microseconds\n"
+                << "========================\n";
     }
 
     std::priority_queue<std::pair<float, hnswlib::labeltype>> searchKnn(const float* query_data, const int k, const float lid_threshold) const {
