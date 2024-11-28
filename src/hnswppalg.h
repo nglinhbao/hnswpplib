@@ -81,9 +81,7 @@ public:
             }
         }
         else {
-            std::priority_queue<std::pair<float, hnswlib::tableint>, 
-                std::vector<std::pair<float, hnswlib::tableint>>, 
-                hnswlib::HierarchicalNSW<float>::CompareByFirst> branch_results;
+            std::priority_queue<std::pair<float, hnswlib::labeltype>> branch_results;
             std::vector<hnswlib::tableint> entry_points;
                 
             if (branch == 0) {
